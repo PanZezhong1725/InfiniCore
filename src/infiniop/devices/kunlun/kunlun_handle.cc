@@ -1,5 +1,4 @@
 #include "kunlun_handle.h"
-#include "common_kunlun.h"
 
 infiniopStatus_t createKunlunHandle(infiniopKunlunHandle_t *handle_ptr,
                                     int device_id) {

@@ -25,9 +25,9 @@ infiniopStatus_t matmul_kunlun(MatmulKunlunDescriptor_t desc,
                      checkKUNLUNError((
                          xdnn::fc_fusion<T, T, T, int16_t>(
                              handle,
-                             (T *) ((char *) a + i * info.a_matrix.stride * infini_sizeof(desc->dtype)),
-                             (T *) ((char *) b + i * info.b_matrix.stride * infini_sizeof(desc->dtype)),
-                             (T *) ((char *) c + i * info.c_matrix.stride * infini_sizeof(desc->dtype)),
+                             (T *) ((char *) a + i * info.a_matrix.stride * infiniSizeof(desc->dtype)),
+                             (T *) ((char *) b + i * info.b_matrix.stride * infiniSizeof(desc->dtype)),
+                             (T *) ((char *) c + i * info.c_matrix.stride * infiniSizeof(desc->dtype)),
                              info.m,
                              info.n,
                              info.k,

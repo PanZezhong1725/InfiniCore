@@ -27,6 +27,11 @@ def get_args():
         action="store_true",
         help="Run ASCEND NPU test",
     )
+    parser.add_argument(
+        "--kunlun",
+        action="store_true",
+        help="Run kunlun test",
+    )
 
     return parser.parse_args()
 

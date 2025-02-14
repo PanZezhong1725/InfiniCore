@@ -19,7 +19,7 @@ infiniopStatus_t createKunlunHandle(infiniopKunlunHandle_t *handle_ptr,
                                     int device_id);
 infiniopStatus_t deleteKunlunHandle(infiniopKunlunHandle_t handle);
 
-template<typename T>
+template <typename T>
 void use_xdnn(std::shared_ptr<Pool<xdnnHandle_t>> xdnn_handles_t, int device_id,
               XPUStream stream, T const &f) {
     auto handle = xdnn_handles_t->pop();
