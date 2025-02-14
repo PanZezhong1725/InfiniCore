@@ -4,10 +4,10 @@ import sys
 import os
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from operatorspy import (
+from libinfiniop import (
     open_lib,
     to_tensor,
-    DeviceEnum,
+    InfiniDeviceEnum,
     infiniopHandle_t,
     infiniopTensorDescriptor_t,
     create_handle,
@@ -17,7 +17,7 @@ from operatorspy import (
     create_workspace,
 )
 
-from operatorspy.tests.test_utils import get_args
+from test_utils import get_args, synchronize_device
 import torch
 
 class RMSNormDescriptor(Structure):
@@ -34,7 +34,7 @@ def rms_norm(x, w, eps):
     return w * hidden_states.to(input_dtype)
 
 
-def test(lib, handle, torch_device, y_shape, x_shape, w_shape, dtype=torch.float16, w_dtype=torch.float16):
+def test(ib, handle, torch_device, y_shape, x_shape, w_shape, dtype=torch.float16, w_dtype=torch.float16):
     print(f"Testing RMS_Norm on {torch_device} with y_shape:{y_shape} x_shape:{x_shape} w_shape:{w_shape}"
         f" dtype:{dtype} w_dtype:{w_dtype}")
 
@@ -50,12 +50,15 @@ def test(lib, handle, torch_device, y_shape, x_shape, w_shape, dtype=torch.float
     w_tensor = to_tensor(w, lib)
 
     descriptor = infiniopRMSNormDescriptor_t()
-    w_dataType = 0 if w_dtype==torch.float16 else 1
 
     check_error(
         lib.infiniopCreateRMSNormDescriptor(
-            handle, ctypes.byref(descriptor), y_tensor.descriptor, x_tensor.descriptor,
-            w_tensor.descriptor, eps
+            handle,
+            ctypes.byref(descriptor),
+            y_tensor.descriptor,
+            x_tensor.descriptor,
+            w_tensor.descriptor,
+            eps
         )
     )
 
@@ -87,22 +90,22 @@ def test(lib, handle, torch_device, y_shape, x_shape, w_shape, dtype=torch.float
     check_error(lib.infiniopDestroyRMSNormDescriptor(descriptor))
 
 def test_cpu(lib, test_cases):
-    device = DeviceEnum.DEVICE_CPU
+    device = InfiniDeviceEnum.CPU
     handle = create_handle(lib, device)
     for (y_shape, x_shape, w_shape, dtype, w_dtype) in test_cases:
         test(lib, handle, "cpu", y_shape, x_shape, w_shape, dtype, w_dtype)
     destroy_handle(lib, handle)
 
-def test_cuda(lib, test_cases):
-    device = DeviceEnum.DEVICE_CUDA
+def test_nvidia(lib, test_cases):
+    device = InfiniDeviceEnum.NVIDIA
     handle = create_handle(lib, device)
     for (y_shape, x_shape, w_shape, dtype, w_dtype) in test_cases:
         test(lib, handle, "cuda", y_shape, x_shape, w_shape, dtype, w_dtype)
     destroy_handle(lib, handle)
 
-def test_bang(lib, test_cases):
+def test_cambricon(lib, test_cases):
     import torch_mlu
-    device = DeviceEnum.DEVICE_BANG
+    device = InfiniDeviceEnum.CAMBRICON
     handle = create_handle(lib, device)
     for (y_shape, x_shape, w_shape, dtype, w_dtype) in test_cases:
         test(lib, handle, "mlu", y_shape, x_shape, w_shape, dtype, w_dtype)
@@ -110,7 +113,7 @@ def test_bang(lib, test_cases):
 
 def test_ascend(lib, test_cases):
     import torch_npu
-    device = DeviceEnum.DEVICE_ASCEND
+    device = InfiniDeviceEnum.ASCEND
     handle = create_handle(lib, device)
     for (y_shape, x_shape, w_shape, dtype, w_dtype) in test_cases:
         test(lib, handle, "npu", y_shape, x_shape, w_shape, dtype, w_dtype)
@@ -156,14 +159,16 @@ if __name__ == "__main__":
         infiniopRMSNormDescriptor_t,
     ]
 
+    if args.profile:
+        PROFILE = True
     if args.cpu:
         test_cpu(lib, test_cases)
-    if args.cuda:
-        test_cuda(lib, test_cases)
-    if args.bang:
-        test_bang(lib, test_cases)
+    if args.nvidia:
+        test_nvidia(lib, test_cases)
+    if args.cambricon:
+        test_cambricon(lib, test_cases)
     if args.ascend:
         test_ascend(lib, test_cases)
-    if not (args.cpu or args.cuda or args.bang or args.ascend):
+    if not (args.cpu or args.nvidia or args.cambricon or args.ascend):
         test_cpu(lib, test_cases)
     print("\033[92mTest passed!\033[0m")
