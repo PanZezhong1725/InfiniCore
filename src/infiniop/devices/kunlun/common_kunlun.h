@@ -6,6 +6,7 @@
 #include "xpu/xdnn.h"
 
 namespace xdnn = baidu::xpu::api;
+typedef xdnn::Context *xdnnHandle_t;
 
 #define checkKUNLUNError(call)                                         \
     {                                                                  \
@@ -16,20 +17,5 @@ namespace xdnn = baidu::xpu::api;
             exit(EXIT_FAILURE);                                        \
         }                                                              \
     }
-
-#include <memory>
-#include "kunlun_handle.h"
-#include "../pool.h"
-
-typedef xdnn::Context *xdnnHandle_t;
-
-struct InfiniopKunlunHandle{
-    infiniDevice_t device;
-    int device_id;
-    std::shared_ptr<Pool<xdnnHandle_t>> xdnn_handles_t;
-};
-
-
-
 
 #endif

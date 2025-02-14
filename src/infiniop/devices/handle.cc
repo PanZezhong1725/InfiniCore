@@ -11,6 +11,9 @@
 #ifdef ENABLE_ASCEND_API
 #include "./ascend/ascend_handle.h"
 #endif
+#ifdef ENABLE_KUNLUN_API
+#include "./kunlun/kunlun_handle.h"
+#endif
 
 __C infiniopStatus_t infiniopCreateHandle(infiniopHandle_t *handle_ptr,
                                           infiniDevice_t device) {
@@ -38,6 +41,11 @@ __C infiniopStatus_t infiniopCreateHandle(infiniopHandle_t *handle_ptr,
         return createAscendHandle((infiniopAscendHandle_t *)handle_ptr);
     }
 #endif
+#ifdef ENABLE_KUNLUN_API
+        case INFINI_DEVICE_KUNLUN: {
+            return createKunlunHandle((infiniopKunlunHandle_t *) handle_ptr, device_id);
+        }
+#endif
     }
     return INFINIOP_STATUS_DEVICE_TYPE_NOT_SUPPORTED;
 }
@@ -62,6 +70,11 @@ __C infiniopStatus_t infiniopDestroyHandle(infiniopHandle_t handle) {
     case INFINI_DEVICE_ASCEND: {
         return destroyAscendHandle((infiniopAscendHandle_t)handle);
     }
+#endif
+#ifdef ENABLE_KUNLUN_API
+        case INFINI_DEVICE_KUNLUN: {
+            return deleteKunlunHandle((infiniopKunlunHandle_t) handle);
+        }
 #endif
     }
     return INFINIOP_STATUS_DEVICE_TYPE_NOT_SUPPORTED;
