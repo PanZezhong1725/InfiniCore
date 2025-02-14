@@ -7,7 +7,7 @@
 #include "infinicore.h"
 #include "matmul_xdnn_api.h"
 
-struct MatmulKunlunDescriptor {
+struct InfiniopMatmulKunlunDescriptor {
     infiniDevice_t device;
     infiniDtype_t dtype;
     int device_id;

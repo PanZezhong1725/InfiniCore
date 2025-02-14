@@ -1,7 +1,7 @@
 #include "matmul_xdnn.h"
 
 template<typename T>
-infiniopStatus_t matmul_kunlun(MatmulKunlunDescriptor_t desc,
+infiniopStatus_t matmul_kunlun(infiniopMatmulKunlunDescriptor_t desc,
                                void *c,
                                float beta,
                                void const *a,
@@ -50,7 +50,7 @@ infiniopStatus_t matmul_kunlun(MatmulKunlunDescriptor_t desc,
 }
 
 infiniopStatus_t kunlunCreateMatmulDescriptor(infiniopKunlunHandle_t handle,
-                                              MatmulKunlunDescriptor_t *desc_ptr,
+                                              infiniopMatmulKunlunDescriptor_t *desc_ptr,
                                               infiniopTensorDescriptor_t c_desc,
                                               infiniopTensorDescriptor_t a_desc,
                                               infiniopTensorDescriptor_t b_desc) {
@@ -66,7 +66,7 @@ infiniopStatus_t kunlunCreateMatmulDescriptor(infiniopKunlunHandle_t handle,
         return status;
     }
 
-    *desc_ptr = new MatmulKunlunDescriptor{
+    *desc_ptr = new InfiniopMatmulKunlunDescriptor{
         INFINI_DEVICE_KUNLUN,
         dtype,
         handle->device_id,
@@ -75,12 +75,12 @@ infiniopStatus_t kunlunCreateMatmulDescriptor(infiniopKunlunHandle_t handle,
     return INFINIOP_STATUS_SUCCESS;
 }
 
-infiniopStatus_t kunlunGetMatmulWorkspaceSize(MatmulKunlunDescriptor_t desc, uint64_t *size) {
+infiniopStatus_t kunlunGetMatmulWorkspaceSize(infiniopMatmulKunlunDescriptor_t desc, uint64_t *size) {
     *size = 0;
     return INFINIOP_STATUS_SUCCESS;
 }
 
-infiniopStatus_t kunlunMatmul(MatmulKunlunDescriptor_t desc,
+infiniopStatus_t kunlunMatmul(infiniopMatmulKunlunDescriptor_t desc,
                               void *workspace,
                               uint64_t workspace_size,
                               void *c,
@@ -98,7 +98,7 @@ infiniopStatus_t kunlunMatmul(MatmulKunlunDescriptor_t desc,
     return INFINIOP_STATUS_BAD_TENSOR_DTYPE;
 }
 
-infiniopStatus_t kunlunDestroyMatmulDescriptor(MatmulKunlunDescriptor_t desc) {
+infiniopStatus_t kunlunDestroyMatmulDescriptor(infiniopMatmulKunlunDescriptor_t desc) {
     desc->xdnn_handles_t = nullptr;
     delete desc;
     return INFINIOP_STATUS_SUCCESS;
