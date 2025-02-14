@@ -2,8 +2,8 @@ add_defines("ENABLE_KUNLUN_API")
 local KUNLUN_HOME = os.getenv("KUNLUN_HOME")
 
 -- Add include dirs
-add_includedirs(KUNLUN_HOME .. "/include")
-add_linkdirs(KUNLUN_HOME .. "/lib64")
+add_includedirs(path.join(KUNLUN_HOME, "include"), {public=true})
+add_linkdirs(path.join(KUNLUN_HOME, "lib64"))
 add_links("xpurt")
 add_links("xpuapi")
 
