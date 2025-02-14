@@ -12,6 +12,9 @@
 #ifdef ENABLE_ASCEND_API
 #include "ascend/matmul_aclnn_api.h"
 #endif
+#ifdef ENABLE_KUNLUN_API
+#include "kunlun/matmul_xdnn_api.h"
+#endif
 
 __C infiniopStatus_t infiniopCreateMatmulDescriptor(
     infiniopHandle_t handle, infiniopMatmulDescriptor_t *desc_ptr,
@@ -45,6 +48,13 @@ __C infiniopStatus_t infiniopCreateMatmulDescriptor(
                                            c_desc, a_desc, b_desc, 1);
     }
 #endif
+#ifdef ENABLE_KUNLUN_API
+    case INFINI_DEVICE_KUNLUN: {
+        return kunlunCreateMatmulDescriptor(
+            (infiniopKunlunHandle_t)handle,
+            (infiniopMatmulKunlunDescriptor_t *)desc_ptr, c_desc, a_desc, b_desc);
+    }
+#endif
     }
     return INFINIOP_STATUS_DEVICE_TYPE_NOT_SUPPORTED;
 }
@@ -73,6 +83,12 @@ infiniopGetMatmulWorkspaceSize(infiniopMatmulDescriptor_t desc, size_t *size) {
 #ifdef ENABLE_ASCEND_API
     case INFINI_DEVICE_ASCEND: {
         return aclnnGetMatmulWorkspaceSize((MatmulAclnnDescriptor_t)desc, size);
+    }
+#endif
+#ifdef ENABLE_KUNLUN_API
+    case INFINI_DEVICE_KUNLUN: {
+        return kunlunGetMatmulWorkspaceSize((infiniopMatmulKunlunDescriptor_t)desc,
+                                            size);
     }
 #endif
     }
@@ -105,6 +121,11 @@ __C infiniopStatus_t infiniopMatmul(infiniopMatmulDescriptor_t desc,
         return aclnnMatmul((MatmulAclnnDescriptor_t)desc, workspace,
                            workspace_size, c, a, b, alpha, beta, stream);
 #endif
+#ifdef ENABLE_KUNLUN_API
+    case INFINI_DEVICE_KUNLUN:
+        return kunlunMatmul((infiniopMatmulKunlunDescriptor_t)desc, workspace,
+                            workspace_size, c, a, b, alpha, beta, stream);
+#endif
     }
     return INFINIOP_STATUS_DEVICE_TYPE_NOT_SUPPORTED;
 }
@@ -125,12 +146,18 @@ infiniopDestroyMatmulDescriptor(infiniopMatmulDescriptor_t desc) {
 #endif
 #ifdef ENABLE_CAMBRICON_API
     case INFINI_DEVICE_CAMBRICON: {
-        return bangDestroyMatmulDescriptor((infiniopMatmulBangDescriptor_t)desc);
+        return bangDestroyMatmulDescriptor(
+            (infiniopMatmulBangDescriptor_t)desc);
     }
 #endif
 #ifdef ENABLE_ASCEND_API
     case INFINI_DEVICE_ASCEND: {
         return aclnnDestroyMatmulDescriptor((MatmulAclnnDescriptor_t)desc);
+    }
+#endif
+#ifdef ENABLE_KUNLUN_API
+    case INFINI_DEVICE_KUNLUN: {
+        return kunlunDestroyMatmulDescriptor((infiniopMatmulKunlunDescriptor_t)desc);
     }
 #endif
     }
