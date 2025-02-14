@@ -3,7 +3,7 @@
 #include "../../utils.h"
 #include <cmath>
 
-infiniopStatus_t cpuCreateRMSNormDescriptor(infiniopHandle_t, RMSNormCpuDescriptor_t *desc_ptr,
+infiniopStatus_t cpuCreateRMSNormDescriptor(infiniopHandle_t, infiniopRMSNormCpuDescriptor_t *desc_ptr,
                                             infiniopTensorDescriptor_t y_desc, infiniopTensorDescriptor_t x_desc, infiniopTensorDescriptor_t w_desc, float epsilon) {
     if (y_desc->ndim != 2 || x_desc->ndim != 2 || w_desc->ndim != 1) {
         return INFINIOP_STATUS_BAD_TENSOR_SHAPE;
@@ -20,7 +20,7 @@ infiniopStatus_t cpuCreateRMSNormDescriptor(infiniopHandle_t, RMSNormCpuDescript
     uint64_t stride_x = y_desc->strides[0];
     auto w_datatype = w_desc->dtype;
 
-    *desc_ptr = new RMSNormCpuDescriptor{
+    *desc_ptr = new InfiniRMSNormCpuDescriptor{
         INFINI_DEVICE_CPU,
         y_desc->dtype,
         n,
@@ -33,17 +33,17 @@ infiniopStatus_t cpuCreateRMSNormDescriptor(infiniopHandle_t, RMSNormCpuDescript
     return INFINIOP_STATUS_SUCCESS;
 }
 
-infiniopStatus_t cpuGetRMSNormWorkspaceSize(RMSNormCpuDescriptor_t desc, uint64_t *size) {
+infiniopStatus_t cpuGetRMSNormWorkspaceSize(infiniopRMSNormCpuDescriptor_t desc, uint64_t *size) {
     *size = 0;
     return INFINIOP_STATUS_SUCCESS;
 }
 
-infiniopStatus_t cpuDestroyRMSNormDescriptor(RMSNormCpuDescriptor_t desc) {
+infiniopStatus_t cpuDestroyRMSNormDescriptor(infiniopRMSNormCpuDescriptor_t desc) {
     delete desc;
     return INFINIOP_STATUS_SUCCESS;
 }
 
-void rms_norm_cpu_f16(RMSNormCpuDescriptor_t desc, void *y, void const *x, void const *w) {
+void rms_norm_cpu_f16(infiniopRMSNormCpuDescriptor_t desc, void *y, void const *x, void const *w) {
     auto n = desc->n, d = desc->d;
     auto stride_y = desc->stride_y;
     auto stride_x = desc->stride_x;
@@ -85,7 +85,7 @@ void rms_norm_cpu_f16(RMSNormCpuDescriptor_t desc, void *y, void const *x, void 
     }
 }
 
-infiniopStatus_t cpuRMSNorm(RMSNormCpuDescriptor_t desc,
+infiniopStatus_t cpuRMSNorm(infiniopRMSNormCpuDescriptor_t desc,
                             void *workspace,
                             uint64_t workspace_size,
                             void *y, void const *x, void const *w,

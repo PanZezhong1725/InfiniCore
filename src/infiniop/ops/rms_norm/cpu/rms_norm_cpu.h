@@ -3,7 +3,7 @@
 
 #include "./rms_norm_cpu_api.h"
 
-struct RMSNormCpuDescriptor {
+struct InfiniRMSNormCpuDescriptor {
     infiniDevice_t device;
     infiniDtype_t dtype;
     uint64_t n;
