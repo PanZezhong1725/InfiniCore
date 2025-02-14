@@ -5,19 +5,19 @@
 #include "../../../devices/kunlun/kunlun_handle.h"
 #include "infiniop/operator.h"
 
-struct MatmulKunlunDescriptor;
-typedef struct MatmulKunlunDescriptor *MatmulKunlunDescriptor_t;
+struct InfiniopMatmulKunlunDescriptor;
+typedef struct InfiniopMatmulKunlunDescriptor *infiniopMatmulKunlunDescriptor_t;
 
 infiniopStatus_t kunlunCreateMatmulDescriptor(infiniopKunlunHandle_t handle,
-                                              MatmulKunlunDescriptor_t *desc_ptr,
+                                              infiniopMatmulKunlunDescriptor_t *desc_ptr,
                                               infiniopTensorDescriptor_t c_desc,
                                               infiniopTensorDescriptor_t a_desc,
                                               infiniopTensorDescriptor_t b_desc);
 
-infiniopStatus_t kunlunGetMatmulWorkspaceSize(MatmulKunlunDescriptor_t desc,
+infiniopStatus_t kunlunGetMatmulWorkspaceSize(infiniopMatmulKunlunDescriptor_t desc,
                                               uint64_t *size);
 
-infiniopStatus_t kunlunMatmul(MatmulKunlunDescriptor_t desc,
+infiniopStatus_t kunlunMatmul(infiniopMatmulKunlunDescriptor_t desc,
                               void *workspace,
                               uint64_t workspace_size,
                               void *c,
@@ -27,6 +27,6 @@ infiniopStatus_t kunlunMatmul(MatmulKunlunDescriptor_t desc,
                               float beta,
                               void *stream);
 
-infiniopStatus_t kunlunDestroyMatmulDescriptor(MatmulKunlunDescriptor_t desc);
+infiniopStatus_t kunlunDestroyMatmulDescriptor(infiniopMatmulKunlunDescriptor_t desc);
 
 #endif

@@ -52,7 +52,7 @@ __C infiniopStatus_t infiniopCreateMatmulDescriptor(
     case INFINI_DEVICE_KUNLUN: {
         return kunlunCreateMatmulDescriptor(
             (infiniopKunlunHandle_t)handle,
-            (MatmulKunlunDescriptor_t *)desc_ptr, c_desc, a_desc, b_desc);
+            (infiniopMatmulKunlunDescriptor_t *)desc_ptr, c_desc, a_desc, b_desc);
     }
 #endif
     }
@@ -87,7 +87,7 @@ infiniopGetMatmulWorkspaceSize(infiniopMatmulDescriptor_t desc, size_t *size) {
 #endif
 #ifdef ENABLE_KUNLUN_API
     case INFINI_DEVICE_KUNLUN: {
-        return kunlunGetMatmulWorkspaceSize((MatmulKunlunDescriptor_t)desc,
+        return kunlunGetMatmulWorkspaceSize((infiniopMatmulKunlunDescriptor_t)desc,
                                             size);
     }
 #endif
@@ -123,7 +123,7 @@ __C infiniopStatus_t infiniopMatmul(infiniopMatmulDescriptor_t desc,
 #endif
 #ifdef ENABLE_KUNLUN_API
     case INFINI_DEVICE_KUNLUN:
-        return kunlunMatmul((MatmulKunlunDescriptor_t)desc, workspace,
+        return kunlunMatmul((infiniopMatmulKunlunDescriptor_t)desc, workspace,
                             workspace_size, c, a, b, alpha, beta, stream);
 #endif
     }
@@ -157,7 +157,7 @@ infiniopDestroyMatmulDescriptor(infiniopMatmulDescriptor_t desc) {
 #endif
 #ifdef ENABLE_KUNLUN_API
     case INFINI_DEVICE_KUNLUN: {
-        return kunlunDestroyMatmulDescriptor((MatmulKunlunDescriptor_t)desc);
+        return kunlunDestroyMatmulDescriptor((infiniopMatmulKunlunDescriptor_t)desc);
     }
 #endif
     }
