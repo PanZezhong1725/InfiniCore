@@ -1,8 +1,7 @@
-#include "../utils.h"
 #include "infiniop/ops/matmul.h"
 
 #ifdef ENABLE_CPU_API
-#include "cpu/matmul_cpu.h"
+#include "cpu/matmul_cpu_api.h"
 #endif
 #ifdef ENABLE_CUDA_API
 #include "cuda/matmul_cuda_api.h"
@@ -47,7 +46,7 @@ __C infiniopStatus_t infiniopCreateMatmulDescriptor(
     }
 #endif
     }
-    return INFINIOP_STATUS_BAD_DEVICE;
+    return INFINIOP_STATUS_DEVICE_TYPE_NOT_SUPPORTED;
 }
 
 __C infiniopStatus_t
@@ -77,7 +76,7 @@ infiniopGetMatmulWorkspaceSize(infiniopMatmulDescriptor_t desc, size_t *size) {
     }
 #endif
     }
-    return INFINIOP_STATUS_BAD_DEVICE;
+    return INFINIOP_STATUS_DEVICE_TYPE_NOT_SUPPORTED;
 }
 
 __C infiniopStatus_t infiniopMatmul(infiniopMatmulDescriptor_t desc,
@@ -107,7 +106,7 @@ __C infiniopStatus_t infiniopMatmul(infiniopMatmulDescriptor_t desc,
                            workspace_size, c, a, b, alpha, beta, stream);
 #endif
     }
-    return INFINIOP_STATUS_BAD_DEVICE;
+    return INFINIOP_STATUS_DEVICE_TYPE_NOT_SUPPORTED;
 }
 
 __C infiniopStatus_t
@@ -135,5 +134,5 @@ infiniopDestroyMatmulDescriptor(infiniopMatmulDescriptor_t desc) {
     }
 #endif
     }
-    return INFINIOP_STATUS_BAD_DEVICE;
+    return INFINIOP_STATUS_DEVICE_TYPE_NOT_SUPPORTED;
 }
