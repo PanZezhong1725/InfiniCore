@@ -84,7 +84,7 @@ infiniopStatus_t aclnnCreateMatmulDescriptor(infiniopAscendHandle_t handle,
     CHECK_RET(ret == ACL_SUCCESS,
               LOG_PRINT("aclnnGemmGetWorkspaceSize failed. ERROR: %d\n", ret);
               return INFINIOP_STATUS_INTERNAL_ERROR);
-    // aclSetAclOpExecutorRepeatable(executor);
+    aclSetAclOpExecutorRepeatable(executor);
 
     return INFINIOP_STATUS_SUCCESS;
 }
