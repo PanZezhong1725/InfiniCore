@@ -1,5 +1,18 @@
 #include "infiniop/ops/rms_norm.h"
 
+#ifdef ENABLE_CPU_API
+#include "cpu/rms_norm_cpu_api.h"
+#endif
+#ifdef ENABLE_CUDA_API
+#include "cuda/rms_norm_cuda_api.h"
+#endif
+#ifdef ENABLE_CAMBRICON_API
+#include "bang/rms_norm_cnnl_api.h"
+#endif
+#ifdef ENABLE_ASCEND_API
+#include "ascend/rms_norm_aclnn_api.h"
+#endif
+
 __C infiniopStatus_t infiniopCreateRMSNormDescriptor(
     infiniopHandle_t handle,
     infiniopRMSNormDescriptor_t *desc_ptr,
@@ -8,9 +21,9 @@ __C infiniopStatus_t infiniopCreateRMSNormDescriptor(
     infiniopTensorDescriptor_t w_desc,
     float epsilon) {
     switch (handle->device) {
-#ifdef ENABLE_CPU
-        case DevCpu:
-            return cpuCreateRMSNormDescriptor(handle, (RMSNormCpuDescriptor_t *) desc_ptr, y_desc, x_desc, w_desc, epsilon);
+#ifdef ENABLE_CPU_API
+        case INFINI_DEVICE_CPU:
+            return cpuCreateRMSNormDescriptor(handle, (infiniopRMSNormCpuDescriptor_t *) desc_ptr, y_desc, x_desc, w_desc, epsilon);
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu: {
@@ -48,9 +61,9 @@ __C infiniopStatus_t infiniopCreateRMSNormDescriptor(
 
 __C infiniopStatus_t infiniopGetRMSNormWorkspaceSize(infiniopRMSNormDescriptor_t desc, uint64_t *size) {
     switch (desc->device) {
-#ifdef ENABLE_CPU
-        case DevCpu:
-            return cpuGetRMSNormWorkspaceSize((RMSNormCpuDescriptor_t) desc, size);
+#ifdef ENABLE_CPU_API
+        case INFINI_DEVICE_CPU:
+            return cpuGetRMSNormWorkspaceSize((infiniopRMSNormCpuDescriptor_t) desc, size);
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu: {
@@ -86,9 +99,9 @@ __C infiniopStatus_t infiniopGetRMSNormWorkspaceSize(infiniopRMSNormDescriptor_t
 __C infiniopStatus_t infiniopRMSNorm(infiniopRMSNormDescriptor_t desc, void *workspace, uint64_t workspace_size,
                                      void *y, void const *x, void const *w, void *stream) {
     switch (desc->device) {
-#ifdef ENABLE_CPU
-        case DevCpu:
-            return cpuRMSNorm((RMSNormCpuDescriptor_t) desc, workspace, workspace_size, y, x, w, stream);
+#ifdef ENABLE_CPU_API
+        case INFINI_DEVICE_CPU:
+            return cpuRMSNorm((infiniopRMSNormCpuDescriptor_t) desc, workspace, workspace_size, y, x, w, stream);
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu: {
@@ -128,9 +141,9 @@ __C infiniopStatus_t infiniopRMSNorm(infiniopRMSNormDescriptor_t desc, void *wor
 
 __C infiniopStatus_t infiniopDestroyRMSNormDescriptor(infiniopRMSNormDescriptor_t desc) {
     switch (desc->device) {
-#ifdef ENABLE_CPU
-        case DevCpu:
-            return cpuDestroyRMSNormDescriptor((RMSNormCpuDescriptor_t) desc);
+#ifdef ENABLE_CPU_API
+        case INFINI_DEVICE_CPU:
+            return cpuDestroyRMSNormDescriptor((infiniopRMSNormCpuDescriptor_t) desc);
 #endif
 #ifdef ENABLE_NV_GPU
         case DevNvGpu: {
