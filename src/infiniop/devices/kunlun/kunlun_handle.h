@@ -8,6 +8,6 @@ struct InfiniopKunlunHandle;
 typedef struct InfiniopKunlunHandle *infiniopKunlunHandle_t;
 
 infiniopStatus_t createKunlunHandle(infiniopKunlunHandle_t *handle_ptr);
-infiniopStatus_t deleteKunlunHandle(infiniopKunlunHandle_t handle);
+infiniopStatus_t destroyKunlunHandle(infiniopKunlunHandle_t handle);
 
 #endif

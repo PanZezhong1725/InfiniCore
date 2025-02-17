@@ -19,8 +19,8 @@ infiniopStatus_t createKunlunHandle(infiniopKunlunHandle_t *handle_ptr) {
     return INFINIOP_STATUS_SUCCESS;
 }
 
-infiniopStatus_t deleteKunlunHandle(infiniopKunlunHandle_t handle) {
-    handle->xdnn_handles_t = nullptr;
+infiniopStatus_t destroyKunlunHandle(infiniopKunlunHandle_t handle) {
+    handle->xdnn_handle_pool = nullptr;
     delete handle;
     return INFINIOP_STATUS_SUCCESS;
 }

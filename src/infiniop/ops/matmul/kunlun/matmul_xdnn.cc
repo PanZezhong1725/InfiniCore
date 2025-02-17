@@ -1,13 +1,13 @@
 #include "matmul_xdnn.h"
 
 template<typename T>
-infiniopStatus_t matmul_kunlun(infiniopMatmulKunlunDescriptor_t desc,
-                               void *c,
-                               float beta,
-                               void const *a,
-                               void const *b,
-                               float alpha,
-                               void *stream) {
+infiniopStatus_t matmulKunlunCommon(infiniopMatmulKunlunDescriptor_t desc,
+                                    void *c,
+                                    float beta,
+                                    void const *a,
+                                    void const *b,
+                                    float alpha,
+                                    void *stream) {
     auto info = desc->info;
 
     if (info.is_transed) {
@@ -17,7 +17,7 @@ infiniopStatus_t matmul_kunlun(infiniopMatmulKunlunDescriptor_t desc,
     auto transA = info.a_matrix.col_stride == 1 ? false : true;
     auto transB = info.b_matrix.col_stride == 1 ? false : true;
 
-    use_xdnn(desc->xdnn_handles_t,
+    use_xdnn(desc->xdnn_handle_pool,
              (XPUStream) stream,
              [&](xdnnHandle_t handle) {
                  for (size_t i = 0; i < info.batch; i++) {
@@ -70,7 +70,7 @@ infiniopStatus_t kunlunCreateMatmulDescriptor(infiniopKunlunHandle_t handle,
         dtype,
         handle->device_id,
         info,
-        handle->xdnn_handles_t};
+        handle->xdnn_handle_pool};
     return INFINIOP_STATUS_SUCCESS;
 }
 
@@ -89,16 +89,16 @@ infiniopStatus_t kunlunMatmul(infiniopMatmulKunlunDescriptor_t desc,
                               float beta,
                               void *stream) {
     if (desc->dtype == INFINI_DTYPE_F16) {
-        return matmul_kunlun<float16>(desc, c, beta, a, b, alpha, stream);
+        return matmulKunlunCommon<float16>(desc, c, beta, a, b, alpha, stream);
     }
     if (desc->dtype == INFINI_DTYPE_F32) {
-        return matmul_kunlun<float>(desc, c, beta, a, b, alpha, stream);
+        return matmulKunlunCommon<float>(desc, c, beta, a, b, alpha, stream);
     }
     return INFINIOP_STATUS_BAD_TENSOR_DTYPE;
 }
 
 infiniopStatus_t kunlunDestroyMatmulDescriptor(infiniopMatmulKunlunDescriptor_t desc) {
-    desc->xdnn_handles_t = nullptr;
+    desc->xdnn_handle_pool = nullptr;
     delete desc;
     return INFINIOP_STATUS_SUCCESS;
 }

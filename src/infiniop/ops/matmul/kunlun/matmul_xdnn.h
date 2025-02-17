@@ -11,7 +11,7 @@ struct InfiniopMatmulKunlunDescriptor {
     infiniDtype_t dtype;
     int device_id;
     MatmulInfo info;
-    std::shared_ptr<Pool<xdnnHandle_t>> xdnn_handles_t;
+    std::shared_ptr<Pool<xdnnHandle_t>> xdnn_handle_pool;
 };
 
 #endif

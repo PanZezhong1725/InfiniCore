@@ -73,7 +73,7 @@ __C infiniopStatus_t infiniopDestroyHandle(infiniopHandle_t handle) {
 #endif
 #ifdef ENABLE_KUNLUN_API
     case INFINI_DEVICE_KUNLUN: {
-        return deleteKunlunHandle((infiniopKunlunHandle_t)handle);
+        return destroyKunlunHandle((infiniopKunlunHandle_t)handle);
     }
 #endif
     }
