@@ -43,8 +43,7 @@ __C infiniopStatus_t infiniopCreateHandle(infiniopHandle_t *handle_ptr,
 #endif
 #ifdef ENABLE_KUNLUN_API
     case INFINI_DEVICE_KUNLUN: {
-        return createKunlunHandle((infiniopKunlunHandle_t *)handle_ptr,
-                                  device_id);
+        return createKunlunHandle((infiniopKunlunHandle_t *)handle_ptr);
     }
 #endif
     }

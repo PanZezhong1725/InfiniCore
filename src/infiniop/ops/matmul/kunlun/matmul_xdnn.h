@@ -4,7 +4,6 @@
 #include "../../../devices/kunlun/common_kunlun.h"
 #include "../../utils.h"
 #include "../blas.h"
-#include "infinicore.h"
 #include "matmul_xdnn_api.h"
 
 struct InfiniopMatmulKunlunDescriptor {

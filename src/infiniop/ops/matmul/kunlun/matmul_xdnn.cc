@@ -18,7 +18,6 @@ infiniopStatus_t matmul_kunlun(infiniopMatmulKunlunDescriptor_t desc,
     auto transB = info.b_matrix.col_stride == 1 ? false : true;
 
     use_xdnn(desc->xdnn_handles_t,
-             desc->device_id,
              (XPUStream) stream,
              [&](xdnnHandle_t handle) {
                  for (size_t i = 0; i < info.batch; i++) {

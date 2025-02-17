@@ -18,4 +18,27 @@ typedef xdnn::Context *xdnnHandle_t;
         }                                                              \
     }
 
+#include "../pool.h"
+#include "infinicore.h"
+#include "kunlun_handle.h"
+#include <memory>
+
+struct InfiniopKunlunHandle {
+    infiniDevice_t device;
+    int device_id;
+    std::shared_ptr<Pool<xdnnHandle_t>> xdnn_handles_t;
+};
+
+template<typename T>
+void use_xdnn(std::shared_ptr<Pool<xdnnHandle_t>> xdnn_handles_t,
+              XPUStream stream, T const &f) {
+    auto handle = xdnn_handles_t->pop();
+    if (!handle) {
+        *handle = xdnn::create_context();
+    }
+    (*handle)->set_stream(stream);
+    f(*handle);
+    xdnn_handles_t->push(std::move(*handle));
+}
+
 #endif

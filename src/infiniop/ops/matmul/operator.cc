@@ -146,8 +146,7 @@ infiniopDestroyMatmulDescriptor(infiniopMatmulDescriptor_t desc) {
 #endif
 #ifdef ENABLE_CAMBRICON_API
     case INFINI_DEVICE_CAMBRICON: {
-        return bangDestroyMatmulDescriptor(
-            (infiniopMatmulBangDescriptor_t)desc);
+        return bangDestroyMatmulDescriptor((infiniopMatmulBangDescriptor_t)desc);
     }
 #endif
 #ifdef ENABLE_ASCEND_API

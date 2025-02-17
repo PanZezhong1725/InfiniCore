@@ -1,7 +1,6 @@
 #ifndef __MATMUL_XDNN_API_H__
 #define __MATMUL_XDNN_API_H__
 
-#include "../../../devices/kunlun/common_kunlun.h"
 #include "../../../devices/kunlun/kunlun_handle.h"
 #include "infiniop/operator.h"
 
