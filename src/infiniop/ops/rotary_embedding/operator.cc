@@ -8,16 +8,16 @@ __C infiniStatus_t infiniopCreateRoPEDescriptor(
     infiniopTensorDescriptor_t sin_table,
     infiniopTensorDescriptor_t cos_table) {
     switch (handle->device) {
-#ifdef ENABLE_CPU
-    case DevCpu:
-        return cpuCreateRoPEDescriptor((CpuHandle_t)handle,
-                                       (RoPECpuDescriptor_t *)desc_ptr, t,
+#ifdef ENABLE_CPU_API
+    case INFINI_DEVICE_CPU:
+        return cpuCreateRoPEDescriptor((infiniopCpuHandle_t)handle,
+                                       (infiniopRoPECpuDescriptor_t *)desc_ptr, t,
                                        pos_ids, sin_table, cos_table);
 #endif
 #ifdef ENABLE_NV_GPU
     case DevNvGpu: {
         return cudaCreateRoPEDescriptor((CudaHandle_t)handle,
-                                        (RoPECudaDescriptor_t *)desc_ptr, t,
+                                        (infiniopRoPECpuDescriptor_t *)desc_ptr, t,
                                         pos_ids, sin_table, cos_table);
     }
 
