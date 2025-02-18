@@ -1,5 +1,9 @@
 #include "infiniop/ops/swiglu.h"
 
+#ifdef ENABLE_CAMBRICON_API
+#include "bang/swiglu_bang_api.h"
+#endif
+
 __C infiniopStatus_t infiniopCreateSwiGLUDescriptor(
     infiniopHandle_t handle, infiniopSwiGLUDescriptor_t *desc_ptr,
     infiniopTensorDescriptor_t c_desc, infiniopTensorDescriptor_t a_desc,
@@ -16,10 +20,10 @@ __C infiniopStatus_t infiniopCreateSwiGLUDescriptor(
                                           (SwiGLUCudaDescriptor_t *)desc_ptr,
                                           c_desc, a_desc, b_desc);
 #endif
-#ifdef ENABLE_CAMBRICON_MLU
-    case DevCambriconMlu: {
-        return bangCreateSwiGLUDescriptor((BangHandle_t)handle,
-                                          (SwiGLUBangDescriptor_t *)desc_ptr,
+#ifdef ENABLE_CAMBRICON_API
+    case INFINI_DEVICE_CAMBRICON: {
+        return bangCreateSwiGLUDescriptor((infiniopBangHandle_t)handle,
+                                          (infiniopSwiGLUBangDescriptor_t *)desc_ptr,
                                           c_desc, a_desc, b_desc);
     }
 #endif
@@ -57,9 +61,9 @@ __C infiniopStatus_t infiniopSwiGLU(infiniopSwiGLUDescriptor_t desc, void *c,
     case DevNvGpu:
         return cudaSwiGLU((SwiGLUCudaDescriptor_t)desc, c, a, b, stream);
 #endif
-#ifdef ENABLE_CAMBRICON_MLU
-    case DevCambriconMlu: {
-        return bangSwiGLU((SwiGLUBangDescriptor_t)desc, c, a, b, stream);
+#ifdef ENABLE_CAMBRICON_API
+    case INFINI_DEVICE_CAMBRICON: {
+        return bangSwiGLU((infiniopSwiGLUBangDescriptor_t)desc, c, a, b, stream);
     }
 #endif
 #ifdef ENABLE_ASCEND_NPU
@@ -89,9 +93,9 @@ infiniopDestroySwiGLUDescriptor(infiniopSwiGLUDescriptor_t desc) {
     case DevNvGpu:
         return cudaDestroySwiGLUDescriptor((SwiGLUCudaDescriptor_t)desc);
 #endif
-#ifdef ENABLE_CAMBRICON_MLU
-    case DevCambriconMlu: {
-        return bangDestroySwiGLUDescriptor((SwiGLUBangDescriptor_t)desc);
+#ifdef ENABLE_CAMBRICON_API
+    case INFINI_DEVICE_CAMBRICON: {
+        return bangDestroySwiGLUDescriptor((infiniopSwiGLUBangDescriptor_t)desc);
     }
 #endif
 #ifdef ENABLE_ASCEND_NPU

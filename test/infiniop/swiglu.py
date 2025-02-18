@@ -1,25 +1,33 @@
-from ctypes import POINTER, Structure, c_int32, c_uint64, c_void_p
+import torch
 import ctypes
-import sys
-import os
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from operatorspy import (
-    open_lib,
-    to_tensor,
-    CTensor,
-    DeviceEnum,
-    infiniopHandle_t,
-    infiniopTensorDescriptor_t,
-    create_handle,
-    destroy_handle,
-    check_error,
-    rearrange_tensor,
+from ctypes import POINTER, Structure, c_int32, c_size_t, c_uint64, c_void_p, c_float
+from libinfiniop import (
+    infiniopHandle_t, infiniopTensorDescriptor_t, open_lib, to_tensor, get_test_devices, 
+    check_error, rearrange_if_needed, create_workspace, test_operator, get_args, 
+    debug, get_tolerance, profile_operation,
 )
 
-from operatorspy.tests.test_utils import get_args
-import torch
+_TEST_CASES = [
+    # shape, a_stride, b_stride, c_stride
+    ((13, 4), None, None, None),
+    ((13, 4), (10, 1), (10, 1), (10, 1)),
+    ((13, 4, 4), None, None, None),
+    ((13, 4, 4), (20, 4, 1), (20, 4, 1), (20, 4, 1)),
+    ((16, 5632), None, None, None),
+    ((16, 5632), (13312, 1), (13312, 1), (13312, 1)),
+    ((4, 4, 5632), None, None, None),
+    ((4, 4, 5632), (45056, 5632, 1), (45056, 5632, 1), (45056, 5632, 1)),
+]
+# Data types used for testing
+_TENSOR_DTYPES = [torch.float16, torch.float32]
 
+# Tolerance map for different data types
+_TOLERANCE_MAP = {
+    torch.float16: {'atol': 0, 'rtol': 1e-2},
+    torch.float32: {'atol': 0, 'rtol': 1e-3},
+}
+
+DEBUG = False
 
 class SwiGLUDescriptor(Structure):
     _fields_ = [("device", c_int32)]
@@ -51,20 +59,14 @@ def test_out_of_place(
     b = torch.rand(shape, dtype=dtype).to(torch_device)
     c = torch.rand(shape, dtype=dtype).to(torch_device)
 
-    if a_stride is not None:
-        a = rearrange_tensor(a, a_stride)
-    if b_stride is not None:
-        b = rearrange_tensor(b, b_stride)
-    if c_stride is not None:
-        c = rearrange_tensor(c, c_stride)
     ans = swiglu(a, b)
+
+    a, b, c = [rearrange_if_needed(tensor, stride) for tensor, stride in zip([a, b, c], [a_stride, b_stride, c_stride])]
+    a_tensor, b_tensor, c_tensor = [to_tensor(tensor, lib) for tensor in [a, b, c]]
 
     if sync is not None:
         sync()
 
-    a_tensor = to_tensor(a, lib)
-    b_tensor = to_tensor(b, lib)
-    c_tensor = to_tensor(c, lib)
     descriptor = infiniopSwiGLUDescriptor_t()
     check_error(
         lib.infiniopCreateSwiGLUDescriptor(
@@ -77,17 +79,18 @@ def test_out_of_place(
     )
 
     # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
-    a_tensor.descriptor.contents.invalidate()
-    b_tensor.descriptor.contents.invalidate()
-    c_tensor.descriptor.contents.invalidate()
+    for tensor in [a_tensor, b_tensor, c_tensor]:
+        tensor.descriptor.contents.invalidate()
 
     check_error(
         lib.infiniopSwiGLU(
             descriptor, c_tensor.data, a_tensor.data, b_tensor.data, None
         )
     )
-
-    assert torch.allclose(c, ans, atol=1e-4, rtol=1e-2)
+    atol, rtol = get_tolerance(_TOLERANCE_MAP, dtype)
+    if DEBUG:
+        debug(c, ans, atol=atol, rtol=rtol)
+    assert torch.allclose(c, ans, atol=atol, rtol=rtol)
     print("out-of-place Test passed!")
 
     check_error(lib.infiniopDestroySwiGLUDescriptor(descriptor))
@@ -106,17 +109,14 @@ def test_in_place1(
     a = torch.rand(shape, dtype=dtype).to(torch_device)
     b = torch.rand(shape, dtype=dtype).to(torch_device)
 
-    if a_stride is not None:
-        a = rearrange_tensor(a, a_stride)
-    if b_stride is not None:
-        b = rearrange_tensor(b, b_stride)
     ans = swiglu(a, b)
 
     if sync is not None:
         sync()
 
-    a_tensor = to_tensor(a, lib)
-    b_tensor = to_tensor(b, lib)
+    a, b = [rearrange_if_needed(tensor, stride) for tensor, stride in zip([a, b], [a_stride, b_stride])]
+    a_tensor, b_tensor = [to_tensor(tensor, lib) for tensor in [a, b]]
+
     descriptor = infiniopSwiGLUDescriptor_t()
     check_error(
         lib.infiniopCreateSwiGLUDescriptor(
@@ -129,8 +129,8 @@ def test_in_place1(
     )
 
     # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
-    a_tensor.descriptor.contents.invalidate()
-    b_tensor.descriptor.contents.invalidate()
+    for tensor in [a_tensor, b_tensor]:
+        tensor.descriptor.contents.invalidate()
 
     check_error(
         lib.infiniopSwiGLU(
@@ -138,7 +138,10 @@ def test_in_place1(
         )
     )
 
-    assert torch.allclose(a, ans, atol=1e-4, rtol=1e-2)
+    atol, rtol = get_tolerance(_TOLERANCE_MAP, dtype)
+    if DEBUG:
+        debug(a, ans, atol=atol, rtol=rtol)
+    assert torch.allclose(a, ans, atol=atol, rtol=rtol)
     print("in-place1 Test passed!")
 
     check_error(lib.infiniopDestroySwiGLUDescriptor(descriptor))
@@ -157,17 +160,14 @@ def test_in_place2(
     a = torch.rand(shape, dtype=dtype).to(torch_device)
     b = torch.rand(shape, dtype=dtype).to(torch_device)
 
-    if a_stride is not None:
-        a = rearrange_tensor(a, a_stride)
-    if b_stride is not None:
-        b = rearrange_tensor(b, b_stride)
     ans = swiglu(a, b)
 
     if sync is not None:
         sync()
 
-    a_tensor = to_tensor(a, lib)
-    b_tensor = to_tensor(b, lib)
+    a, b = [rearrange_if_needed(tensor, stride) for tensor, stride in zip([a, b], [a_stride, b_stride])]
+    a_tensor, b_tensor = [to_tensor(tensor, lib) for tensor in [a, b]]
+
     descriptor = infiniopSwiGLUDescriptor_t()
     check_error(
         lib.infiniopCreateSwiGLUDescriptor(
@@ -180,8 +180,8 @@ def test_in_place2(
     )
 
     # Invalidate the shape and strides in the descriptor to prevent them from being directly used by the kernel
-    a_tensor.descriptor.contents.invalidate()
-    b_tensor.descriptor.contents.invalidate()
+    for tensor in [a_tensor, b_tensor]:
+        tensor.descriptor.contents.invalidate()
 
     check_error(
         lib.infiniopSwiGLU(
@@ -189,91 +189,25 @@ def test_in_place2(
         )
     )
 
-    assert torch.allclose(b, ans, atol=1e-4, rtol=1e-2)
-
+    atol, rtol = get_tolerance(_TOLERANCE_MAP, dtype)
+    if DEBUG:
+        debug(b, ans, atol=atol, rtol=rtol)
+    assert torch.allclose(b, ans, atol=atol, rtol=rtol)
+    print("in-place2 Test passed!")
     check_error(lib.infiniopDestroySwiGLUDescriptor(descriptor))
 
 
-def test_cpu(lib, test_cases):
-    device = DeviceEnum.DEVICE_CPU
-    handle = create_handle(lib, device)
+def test(lib, handle, torch_device, shape, a_stride, b_stride, c_stride, dtype, sync = None):
+    test_out_of_place(
+        lib, handle, torch_device, shape, a_stride, b_stride, c_stride, dtype, sync
+    )
+    test_in_place1(lib, handle, torch_device, shape, a_stride, b_stride, dtype, sync)
+    test_in_place2(lib, handle, torch_device, shape, a_stride, b_stride, dtype, sync)
 
-    for shape, a_stride, b_stride, c_stride, dtype in test_cases:
-        test_out_of_place(
-            lib, handle, "cpu", shape, a_stride, b_stride, c_stride, dtype
-        )
-        test_in_place1(lib, handle, "cpu", shape, a_stride, b_stride, dtype)
-        test_in_place2(lib, handle, "cpu", shape, a_stride, b_stride, dtype)
-
-    destroy_handle(lib, handle)
-
-
-def test_cuda(lib, test_cases):
-    device = DeviceEnum.DEVICE_CUDA
-    handle = create_handle(lib, device)
-
-    for shape, a_stride, b_stride, c_stride, dtype in test_cases:
-        test_out_of_place(
-            lib, handle, "cuda", shape, a_stride, b_stride, c_stride, dtype
-        )
-        test_in_place1(lib, handle, "cuda", shape, a_stride, b_stride, dtype)
-        test_in_place2(lib, handle, "cuda", shape, a_stride, b_stride, dtype)
-
-    destroy_handle(lib, handle)
-
-
-def test_bang(lib, test_cases):
-    import torch_mlu
-
-    device = DeviceEnum.DEVICE_BANG
-    handle = create_handle(lib, device)
-
-    for shape, a_stride, b_stride, c_stride, dtype in test_cases:
-        test_out_of_place(
-            lib, handle, "mlu", shape, a_stride, b_stride, c_stride, dtype
-        )
-        test_in_place1(lib, handle, "mlu", shape, a_stride, b_stride, dtype)
-        test_in_place2(lib, handle, "mlu", shape, a_stride, b_stride, dtype)
-
-    destroy_handle(lib, handle)
-
-
-def test_ascend(lib, test_cases):
-    import torch_npu
-
-    device = DeviceEnum.DEVICE_ASCEND
-    handle = create_handle(lib, device)
-
-    for shape, a_stride, b_stride, c_stride, dtype in test_cases:
-        test_out_of_place(
-            lib,
-            handle,
-            "npu",
-            shape,
-            a_stride,
-            b_stride,
-            c_stride,
-            dtype,
-            torch.npu.synchronize,
-        )
-        test_in_place1(
-            lib, handle, "npu", shape, a_stride, b_stride, dtype, torch.npu.synchronize
-        )
-        test_in_place2(
-            lib, handle, "npu", shape, a_stride, b_stride, dtype, torch.npu.synchronize
-        )
-
-    destroy_handle(lib, handle)
 
 
 if __name__ == "__main__":
-    test_cases = [
-        # shape, a_stride, b_stride, c_stride, dtype
-        ((13, 4), None, None, None, torch.float16),
-        ((13, 4), (10, 1), (10, 1), (10, 1), torch.float16),
-        ((16, 5632), None, None, None, torch.float16),
-        ((16, 5632), (13312, 1), (13312, 1), (13312, 1), torch.float16),
-    ]
+    
     args = get_args()
     lib = open_lib()
 
@@ -299,13 +233,8 @@ if __name__ == "__main__":
     lib.infiniopDestroySwiGLUDescriptor.argtypes = [
         infiniopSwiGLUDescriptor_t,
     ]
+    DEBUG = args.debug
+    for device in get_test_devices(args):
+        test_operator(lib, device, test, _TEST_CASES, _TENSOR_DTYPES)
 
-    if args.cpu:
-        test_cpu(lib, test_cases)
-    if args.cuda:
-        test_cuda(lib, test_cases)
-    if args.bang:
-        test_bang(lib, test_cases)
-    if args.ascend:
-        test_ascend(lib, test_cases)
     print("\033[92mTest passed!\033[0m")

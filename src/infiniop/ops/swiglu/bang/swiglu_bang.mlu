@@ -1,0 +1,150 @@
+#include "bang.h"
+#include "bang_device_functions.h"
+#include "cnrt.h"
+#include "swiglu_bang.h"
+#include "../../../devices/bang/common_bang.h"
+#include "../../utils.h"
+#include "swiglu_bang_api.h"
+
+const int SRC_MAX_SIZE = 1024 * 32;//至少大于等于128字节
+__nram__  char nram_buffer[NRAM_MAX_SIZE];
+
+
+template <typename T>
+__mlu_global__ void swigluKernel(T const *a_, T const *b_, T *c_, int *shape, int64_t *mlu_strides_a, int64_t *mlu_strides_b, int64_t *mlu_strides_c, int ndim){
+    
+    const int maxNum = SRC_MAX_SIZE/sizeof(T);
+    int othersize = 1;
+    for(int j = 0; j < ndim - 1; j++){
+        othersize *= shape[j];
+    }
+    int dimsize = shape[ndim - 1];
+    if(dimsize >= maxNum){
+        T *src = (T *)nram_buffer;//[maxNum]
+        T *dest = src + 3 * maxNum; //[maxNum]
+        int remainT = othersize % taskDim;
+        int stepEasy = (othersize - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
+
+        int remain = dimsize % maxNum;
+        int repeat = (dimsize - remain) / maxNum;
+        int tid_a;
+        int tid_b;
+        int tid_c;
+        for(int i = indStart; i < indStart + step; i++){
+            int ind_a = 0;
+            int ind_b = 0;
+            int ind_c = 0;
+            int indi = i;
+            for(int j = ndim - 2; j >= 0; j--){
+                ind_a += (indi % shape[j]) * mlu_strides_a[j];
+                ind_b += (indi % shape[j]) * mlu_strides_b[j];
+                ind_c += (indi % shape[j]) * mlu_strides_c[j];
+                indi = indi / shape[j];
+            }
+            for(int s = 0; s < repeat + 2; s++){
+                
+                if(s < repeat){
+                    tid_a = ind_a + s * maxNum;
+                    tid_b = ind_b + s * maxNum;
+                    __memcpy_async(src + s % 3 * maxNum, a_ + tid_a, maxNum * sizeof(T), GDRAM2NRAM);
+                    __memcpy_async(dest + s % 3 * maxNum, b_ + tid_b, maxNum * sizeof(T), GDRAM2NRAM);
+                }
+                if(s > 0 && s < repeat + 1){
+                    __bang_mul(src + (s - 1) % 3 * maxNum, src + (s - 1) % 3 * maxNum, dest + (s - 1) % 3 * maxNum, maxNum);//a_ = a_ * b_
+                    __bang_active_sigmoid(dest + (s - 1) % 3 * maxNum, dest + (s - 1) % 3 * maxNum, maxNum);//b_ = sigmoid(b_)
+                    __bang_mul(src + (s - 1) % 3 * maxNum, src + (s - 1) % 3 * maxNum, dest + (s - 1) % 3 * maxNum, maxNum);//a_ = a_ * b_
+                }
+                if(s > 1){
+                    tid_c = ind_c + (s - 2) * maxNum;
+                    __memcpy_async(c_ + tid_c, src + (s - 2) % 3 * maxNum, maxNum * sizeof(T), NRAM2GDRAM);
+                }
+                __sync_all_ipu();
+            }
+            if(remain){
+                tid_a = ind_a + repeat * maxNum;
+                tid_b = ind_b + repeat * maxNum;
+                tid_c = ind_c + repeat * maxNum;
+                __memcpy(src, a_ + tid_a, remain * sizeof(T), GDRAM2NRAM);
+                __memcpy(dest, b_ + tid_b, remain * sizeof(T), GDRAM2NRAM);
+                __bang_mul(src, src, dest, remain);//a_ = a_ * b_
+                __bang_active_sigmoid(dest, dest, remain);//b_ = sigmoid(b_)
+                __bang_mul(src, src, dest, remain);//a_ = a_ * b_
+                __memcpy(c_ + tid_c, src, remain * sizeof(T), NRAM2GDRAM);
+            }
+        }
+    }
+    else{
+        T *src = (T *)nram_buffer;//[dimsize]
+        T *dest = src + dimsize; //[dimsize]
+        int remainT = othersize % taskDim;
+        int stepEasy = (othersize - remainT) / taskDim;
+        int stepHard = stepEasy + 1;
+        int step = (taskId < remainT ? stepHard : stepEasy);
+        int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
+        
+        for(int i = indStart; i < indStart + step; i++){
+            int ind_a = 0;
+            int ind_b = 0;
+            int ind_c = 0;
+            int indi = i;
+            for(int j = ndim - 2; j >= 0; j--){
+                ind_a += (indi % shape[j]) * mlu_strides_a[j];
+                ind_b += (indi % shape[j]) * mlu_strides_b[j];
+                ind_c += (indi % shape[j]) * mlu_strides_c[j];
+                indi = indi / shape[j];
+            }
+            __memcpy(src, a_ + ind_a, dimsize * sizeof(T), GDRAM2NRAM);
+            __memcpy(dest, b_ + ind_b, dimsize * sizeof(T), GDRAM2NRAM);
+            
+            __bang_mul(src, src, dest, dimsize);//a_ = a_ * b_
+            __bang_active_sigmoid(dest, dest, dimsize);//b_ = sigmoid(b_)
+            __bang_mul(src, src, dest, dimsize);//a_ = a_ * b_
+
+            __memcpy(c_ + ind_c, src, dimsize * sizeof(T), NRAM2GDRAM);
+        }
+        
+    }
+}
+template<typename T>
+void swigluUnion(cnrtQueue_t queue, void const *a, void const *b, void *c, int *shape, int64_t *mlu_strides_a, int64_t *mlu_strides_b, int64_t *mlu_strides_c, int ndim) {
+    auto c_ = reinterpret_cast<T *>(c);
+    auto a_ = reinterpret_cast<T const *>(a);
+    auto b_ = reinterpret_cast<T const *>(b);
+
+    cnrtDim3_t k_dim;
+    cnrtFunctionType_t k_type;
+
+    k_dim.x = 4;
+    k_dim.y = 1;
+    k_dim.z = 1;
+    k_type = CNRT_FUNC_TYPE_UNION1;
+    
+    swigluKernel<T><<<k_dim, k_type, queue>>>(a_, b_, c_, shape, mlu_strides_a, mlu_strides_b, mlu_strides_c, ndim);
+    
+}
+
+void bangSwiGLUBang(infiniopSwiGLUBangDescriptor_t desc, void const *a, void const *b, void *c, void *stream) {
+    auto queue = reinterpret_cast<cnrtQueue_t>(stream);
+    
+    if (desc->dtype == INFINI_DTYPE_F16){
+        swigluUnion<half>(queue, a, b, c, desc->shape, desc->strides_a, desc->strides_b, desc->strides_c, desc->ndim);
+    }
+    else if (desc->dtype == INFINI_DTYPE_F32){
+        swigluUnion<float>(queue, a, b, c, desc->shape, desc->strides_a, desc->strides_b, desc->strides_c, desc->ndim);
+    }
+    
+}
+infiniopStatus_t bangSwiGLU(infiniopSwiGLUBangDescriptor_t desc,
+                           void *c,
+                           void const *a,
+                           void const *b,
+                           void *stream){                       
+    if (desc->dtype == INFINI_DTYPE_F16 || desc->dtype == INFINI_DTYPE_F32) {
+        bangSwiGLUBang(desc, a, b, c, stream);
+        return INFINIOP_STATUS_SUCCESS;
+    }
+    return INFINIOP_STATUS_BAD_TENSOR_DTYPE;
+}
