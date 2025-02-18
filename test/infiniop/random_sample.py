@@ -1,25 +1,53 @@
-from ctypes import POINTER, Structure, c_int32, c_uint64, c_void_p, c_float
+import torch
 import ctypes
-import sys
-import os
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from operatorspy import (
-    open_lib,
-    to_tensor,
-    DeviceEnum,
+from ctypes import POINTER, Structure, c_int32, c_size_t, c_uint64, c_void_p, c_float
+from libinfiniop import (
     infiniopHandle_t,
     infiniopTensorDescriptor_t,
-    create_handle,
-    destroy_handle,
+    open_lib,
+    to_tensor,
+    get_test_devices,
     check_error,
-    rearrange_tensor,
     create_workspace,
-    U64,
+    test_operator,
+    get_args,
+    profile_operation,
+    InfiniDtype,
+    utils
 )
 
-from operatorspy.tests.test_utils import get_args
-import torch
+
+# ==============================================================================
+#  Configuration (Internal Use Only)
+# ==============================================================================
+# These are not meant to be imported from other modules
+_TEST_CASES = [
+    # voc, random_val, topp, topk, temperature 
+    (512, 0.8, 0.8, 3, 0.5),
+    (4096, 0.05, 0.9, 5, 1.0),
+    (16384, 0.15, 0.85, 10, 2.0),
+    (512, 0.08, 0, 3, 0.5),
+    (4096, 0.5, 0.9, 1, 1.0),
+    (16384, 0.15, 0, 1, 2.0),
+    (16384, 0.15, 0, 1, 2.0),
+    (32000, 0.08, 0.8, 50, 1.0),
+    (32000, 0.08, 1.0, 25, 1.0), 
+    (119696, 0.01, 1.0, 100, 1.0),
+]
+
+# Data types used for testing
+_TENSOR_DTYPES = [torch.float16]
+
+
+DEBUG = False
+PROFILE = False
+NUM_PRERUN = 10
+NUM_ITERATIONS = 1000
+
+
+# ==============================================================================
+#  Definitions
+# ==============================================================================
 
 
 class RandomSampleDescriptor(Structure):
@@ -29,7 +57,8 @@ class RandomSampleDescriptor(Structure):
 infiniopRandomSampleDescriptor_t = POINTER(RandomSampleDescriptor)
 
 
-def random_sample(data, random_val, topp, topk, voc, temperature, torch_device):
+# PyTorch implementation for randomsample
+def random_sample_1(data, random_val, topp, topk, voc, temperature):
     indices = torch.zeros([topk], dtype=torch.int64)
     dataNp = data.clone().detach()
     sorted_indices = torch.arange(voc)
@@ -75,8 +104,18 @@ def random_sample(data, random_val, topp, topk, voc, temperature, torch_device):
             return indices[i]
 
 
+# Random sample degenerate to argmax
 def random_sample_0(data):
     return torch.argmax(data)
+
+
+def random_sample(data, random_val, topp, topk, voc, temperature):
+    if topp > 0 and topk > 1:
+        ans = random_sample_1(data.to("cpu"), random_val, topp, topk, voc, temperature)
+    else:
+        ans = random_sample_0(data) 
+    
+    return ans
 
 
 def test(
@@ -94,16 +133,11 @@ def test(
     data = torch.arange(voc).float() * 0.0001
     _perm = torch.randperm(voc)
     data = data[_perm].to(x_dtype).to(torch_device)
-    if topp > 0 and topk > 1:
-        ans = random_sample(
-            data.to("cpu"), random_val, topp, topk, voc, temperature, "cpu"
-        )
-    else:
-        ans = random_sample_0(data)
+    ans = random_sample(data, random_val, topp, topk, voc, temperature)
     indices = torch.zeros([1], dtype=torch.int64).to(torch_device)
     x_tensor = to_tensor(data, lib)
     indices_tensor = to_tensor(indices, lib)
-    indices_tensor.descriptor.contents.dt = U64  # treat int64 as uint64
+    indices_tensor.descriptor.contents.dt = InfiniDtype.I64  # treat int64 as uint64
 
     descriptor = infiniopRandomSampleDescriptor_t()
     check_error(
@@ -126,78 +160,44 @@ def test(
         )
     )
     workspace = create_workspace(workspace_size.value, torch_device)
-    check_error(
-        lib.infiniopRandomSample(
-            descriptor,
-            workspace.data_ptr() if workspace is not None else None,
-            workspace_size.value,
-            indices_tensor.data,
-            x_tensor.data,
-            random_val,
-            topp,
-            topk,
-            temperature,
-            None,
+    
+    # Execute infiniop random sample
+    def lib_random_sample():
+        check_error(
+            lib.infiniopRandomSample(
+                descriptor,
+                workspace.data_ptr() if workspace is not None else None,
+                workspace_size.value,
+                indices_tensor.data,
+                x_tensor.data,
+                random_val,
+                topp,
+                topk,
+                temperature,
+                None,
+            )
         )
-    )
-    if torch_device == "npu":
-        torch.npu.synchronize()
-
+        utils.synchronize_device(torch_device)
+        
+    lib_random_sample()
+    
+    # Validate results
     assert indices[0].type(ans.dtype) == ans or data[ans] == data[indices[0]]
+    
+    # Profiling workflow
+    if PROFILE:
+        # fmt: off
+        profile_operation("PyTorch", lambda: random_sample(data, random_val, topp, topk, voc, temperature), torch_device, NUM_PRERUN, NUM_ITERATIONS)
+        profile_operation("    lib", lambda: lib_random_sample(), torch_device, NUM_PRERUN, NUM_ITERATIONS)
+        # fmt: on
+    
     check_error(lib.infiniopDestroyRandomSampleDescriptor(descriptor))
 
 
-def test_cpu(lib, test_cases):
-    device = DeviceEnum.DEVICE_CPU
-    handle = create_handle(lib, device)
-    for voc, random_val, topp, topk, temperature in test_cases:
-        test(lib, handle, "cpu", voc, random_val, topp, topk, temperature)
-    destroy_handle(lib, handle)
-
-
-def test_cuda(lib, test_cases):
-    device = DeviceEnum.DEVICE_CUDA
-    handle = create_handle(lib, device)
-    for voc, random_val, topp, topk, temperature in test_cases:
-        test(lib, handle, "cuda", voc, random_val, topp, topk, temperature)
-    destroy_handle(lib, handle)
-
-
-def test_bang(lib, test_cases):
-    import torch_mlu
-
-    device = DeviceEnum.DEVICE_BANG
-    handle = create_handle(lib, device)
-    for voc, random_val, topp, topk, temperature in test_cases:
-        test(lib, handle, "mlu", voc, random_val, topp, topk, temperature)
-    destroy_handle(lib, handle)
-
-
-def test_ascend(lib, test_cases):
-    import torch_npu
-
-    device = DeviceEnum.DEVICE_ASCEND
-    handle = create_handle(lib, device)
-    for voc, random_val, topp, topk, temperature in test_cases:
-        test(lib, handle, "npu", voc, random_val, topp, topk, temperature)
-    destroy_handle(lib, handle)
-
-
+# ==============================================================================
+#  Main Execution
+# ==============================================================================
 if __name__ == "__main__":
-    test_cases = [
-        # voc, random_val, topp, topk, temperature
-        (512, 0.8, 0.8, 3, 0.5),
-        (4096, 0.05, 0.9, 5, 1.0),
-        (16384, 0.15, 0.85, 10, 2.0),
-        (512, 0.08, 0, 3, 0.5),
-        (4096, 0.5, 0.9, 1, 1.0),
-        (16384, 0.15, 0, 1, 2.0),
-        (16384, 0.15, 0, 1, 2.0),
-        (32000, 0.08, 0.8, 50, 1.0),
-        (32000, 0.08, 1.0, 25, 1.0),
-        # (119696, 0.01, 1.0, 100, 1.0),
-    ]
-
     args = get_args()
     lib = open_lib()
     lib.infiniopCreateRandomSampleDescriptor.restype = c_int32
@@ -229,14 +229,14 @@ if __name__ == "__main__":
         infiniopRandomSampleDescriptor_t,
     ]
 
-    if args.cpu:
-        test_cpu(lib, test_cases)
-    if args.cuda:
-        test_cuda(lib, test_cases)
-    if args.bang:
-        test_bang(lib, test_cases)
-    if args.ascend:
-        test_ascend(lib, test_cases)
-    if not (args.cpu or args.cuda or args.bang or args.ascend):
-        test_cpu(lib, test_cases)
+    # Configure testing options
+    DEBUG = args.debug
+    PROFILE = args.profile
+    NUM_PRERUN = args.num_prerun
+    NUM_ITERATIONS = args.num_iterations
+
+    # Execute tests
+    for device in get_test_devices(args):
+        test_operator(lib, device, test, _TEST_CASES, _TENSOR_DTYPES)
+    
     print("\033[92mTest passed!\033[0m")
