@@ -14,11 +14,11 @@ infiniopStatus_t kunlunCreateMatmulDescriptor(infiniopKunlunHandle_t handle,
                                               infiniopTensorDescriptor_t b_desc);
 
 infiniopStatus_t kunlunGetMatmulWorkspaceSize(infiniopMatmulKunlunDescriptor_t desc,
-                                              uint64_t *size);
+                                              size_t *size);
 
 infiniopStatus_t kunlunMatmul(infiniopMatmulKunlunDescriptor_t desc,
                               void *workspace,
-                              uint64_t workspace_size,
+                              size_t workspace_size,
                               void *c,
                               void const *a,
                               void const *b,

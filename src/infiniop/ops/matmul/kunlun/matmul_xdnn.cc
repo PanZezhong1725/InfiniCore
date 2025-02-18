@@ -1,6 +1,6 @@
 #include "matmul_xdnn.h"
 
-template<typename T>
+template <typename T>
 infiniopStatus_t matmulKunlunCommon(infiniopMatmulKunlunDescriptor_t desc,
                                     void *c,
                                     float beta,
@@ -17,35 +17,36 @@ infiniopStatus_t matmulKunlunCommon(infiniopMatmulKunlunDescriptor_t desc,
     auto transA = info.a_matrix.col_stride == 1 ? false : true;
     auto transB = info.b_matrix.col_stride == 1 ? false : true;
 
-    use_xdnn(desc->xdnn_handle_pool,
-             (XPUStream) stream,
-             [&](xdnnHandle_t handle) {
-                 for (size_t i = 0; i < info.batch; i++) {
-                     checkKUNLUNError((
-                         xdnn::fc_fusion<T, T, T, int16_t>(
-                             handle,
-                             (T *) ((char *) a + i * info.a_matrix.stride * infiniSizeof(desc->dtype)),
-                             (T *) ((char *) b + i * info.b_matrix.stride * infiniSizeof(desc->dtype)),
-                             (T *) ((char *) c + i * info.c_matrix.stride * infiniSizeof(desc->dtype)),
-                             info.m,
-                             info.n,
-                             info.k,
-                             transA,
-                             transB,
-                             nullptr,
-                             nullptr,
-                             nullptr,
-                             info.a_matrix.ld(),
-                             info.b_matrix.ld(),
-                             info.c_matrix.ld(),
-                             alpha,
-                             beta,
-                             nullptr,
-                             xdnn::Activation_t::LINEAR,
-                             nullptr)));
-                 }
-             });
-    return INFINIOP_STATUS_SUCCESS;
+    auto ret = use_xdnn(desc->xdnn_handle_pool,
+                        (XPUStream)stream,
+                        [&](xdnnHandle_t handle) {
+                            for (size_t i = 0; i < info.batch; i++) {
+                                CHECK_KUNLUN((
+                                    xdnn::fc_fusion<T, T, T, int16_t>(
+                                        handle,
+                                        (T *)((char *)a + i * info.a_matrix.stride * infiniSizeof(desc->dtype)),
+                                        (T *)((char *)b + i * info.b_matrix.stride * infiniSizeof(desc->dtype)),
+                                        (T *)((char *)c + i * info.c_matrix.stride * infiniSizeof(desc->dtype)),
+                                        info.m,
+                                        info.n,
+                                        info.k,
+                                        transA,
+                                        transB,
+                                        nullptr,
+                                        nullptr,
+                                        nullptr,
+                                        info.a_matrix.ld(),
+                                        info.b_matrix.ld(),
+                                        info.c_matrix.ld(),
+                                        alpha,
+                                        beta,
+                                        nullptr,
+                                        xdnn::Activation_t::LINEAR,
+                                        nullptr)));
+                            }
+                            return INFINIOP_STATUS_SUCCESS;
+                        });
+    return ret;
 }
 
 infiniopStatus_t kunlunCreateMatmulDescriptor(infiniopKunlunHandle_t handle,
@@ -74,14 +75,15 @@ infiniopStatus_t kunlunCreateMatmulDescriptor(infiniopKunlunHandle_t handle,
     return INFINIOP_STATUS_SUCCESS;
 }
 
-infiniopStatus_t kunlunGetMatmulWorkspaceSize(infiniopMatmulKunlunDescriptor_t desc, uint64_t *size) {
+infiniopStatus_t kunlunGetMatmulWorkspaceSize(infiniopMatmulKunlunDescriptor_t desc,
+                                              size_t *size) {
     *size = 0;
     return INFINIOP_STATUS_SUCCESS;
 }
 
 infiniopStatus_t kunlunMatmul(infiniopMatmulKunlunDescriptor_t desc,
                               void *workspace,
-                              uint64_t workspace_size,
+                              size_t workspace_size,
                               void *c,
                               void const *a,
                               void const *b,

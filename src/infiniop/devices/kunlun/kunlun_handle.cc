@@ -2,9 +2,7 @@
 
 infiniopStatus_t createKunlunHandle(infiniopKunlunHandle_t *handle_ptr) {
     int device_id;
-    if (xpu_current_device(&device_id) != 0) {
-        return INFINIOP_STATUS_BAD_DEVICE;
-    }
+    CHECK_KUNLUN(xpu_current_device(&device_id))
 
     auto pool = std::make_shared<Pool<xdnnHandle_t>>();
     xdnnHandle_t handle = xdnn::create_context();
