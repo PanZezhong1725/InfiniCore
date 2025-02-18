@@ -1,10 +1,14 @@
 #include "infiniop/ops/random_sample.h"
 
+#ifdef ENABLE_CPU_API
+#include "cpu/random_sample_cpu_api.h"
+#endif
+
 __C infiniopStatus_t infiniopCreateRandomSampleDescriptor(infiniopHandle_t handle, infiniopRandomSampleDescriptor_t *desc_ptr, infiniopTensorDescriptor_t result, infiniopTensorDescriptor_t probs) {
     switch (handle->device) {
-#ifdef ENABLE_CPU
-    case DevCpu:
-        return cpuCreateRandomSampleDescriptor(handle, (RandomSampleCpuDescriptor_t *)desc_ptr, result, probs);
+#ifdef ENABLE_CPU_API
+    case INFINI_DEVICE_CPU:
+        return cpuCreateRandomSampleDescriptor(handle, (infiniopRandomSampleCpuDescriptor_t *)desc_ptr, result, probs);
 #endif
 #ifdef ENABLE_NV_GPU
     case DevNvGpu:
@@ -40,9 +44,10 @@ __C infiniopStatus_t infiniopCreateRandomSampleDescriptor(infiniopHandle_t handl
 
 __C infiniopStatus_t infiniopGetRandomSampleWorkspaceSize(infiniopRandomSampleDescriptor_t desc, size_t *size) {
     switch (desc->device) {
-#ifdef ENABLE_CPU
-    case DevCpu:
-        return cpuGetRandomSampleWorkspaceSize((RandomSampleCpuDescriptor_t)desc, size);
+#ifdef ENABLE_CPU_API
+    case INFINI_DEVICE_CPU:
+        *size = 0;
+        return INFINIOP_STATUS_SUCCESS;
 #endif
 #ifdef ENABLE_NV_GPU
     case DevNvGpu: {
@@ -86,9 +91,9 @@ __C infiniopStatus_t infiniopRandomSample(infiniopRandomSampleDescriptor_t desc,
                                           float temperature,
                                           void *stream) {
     switch (desc->device) {
-#ifdef ENABLE_CPU
-    case DevCpu:
-        return cpuRandomSample((RandomSampleCpuDescriptor_t)desc, workspace, workspace_size, result, probs, random_val, topp, topk, temperature, stream);
+#ifdef ENABLE_CPU_API
+    case INFINI_DEVICE_CPU:
+        return cpuRandomSample((infiniopRandomSampleCpuDescriptor_t)desc, result, probs, random_val, topp, topk, temperature);
 #endif
 #ifdef ENABLE_NV_GPU
     case DevNvGpu:
@@ -119,9 +124,9 @@ __C infiniopStatus_t infiniopRandomSample(infiniopRandomSampleDescriptor_t desc,
 
 __C infiniopStatus_t infiniopDestroyRandomSampleDescriptor(infiniopRandomSampleDescriptor_t desc) {
     switch (desc->device) {
-#ifdef ENABLE_CPU
-    case DevCpu:
-        return cpuDestroyRandomSampleDescriptor((RandomSampleCpuDescriptor_t)desc);
+#ifdef ENABLE_CPU_API
+    case INFINI_DEVICE_CPU:
+        return cpuDestroyRandomSampleDescriptor((infiniopRandomSampleCpuDescriptor_t)desc);
 #endif
 #ifdef ENABLE_NV_GPU
     case DevNvGpu:
