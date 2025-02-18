@@ -7,11 +7,11 @@ struct InfiniopSwiGLUBangDescriptor {
     infiniDevice_t device;
     int device_id;
     infiniDtype_t dtype;
-    uint64_t seq_len;
-    uint64_t di;
-    uint64_t stride_a;
-    uint64_t stride_b;
-    uint64_t stride_c;
+    int ndim;
+    int *shape;
+    int64_t *strides_a;
+    int64_t *strides_b;
+    int64_t *strides_c;
 };
 
 

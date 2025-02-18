@@ -11,8 +11,12 @@ _TEST_CASES = [
     # shape, a_stride, b_stride, c_stride
     ((13, 4), None, None, None),
     ((13, 4), (10, 1), (10, 1), (10, 1)),
+    ((13, 4, 4), None, None, None),
+    ((13, 4, 4), (20, 4, 1), (20, 4, 1), (20, 4, 1)),
     ((16, 5632), None, None, None),
     ((16, 5632), (13312, 1), (13312, 1), (13312, 1)),
+    ((4, 4, 5632), None, None, None),
+    ((4, 4, 5632), (45056, 5632, 1), (45056, 5632, 1), (45056, 5632, 1)),
 ]
 # Data types used for testing
 _TENSOR_DTYPES = [torch.float16, torch.float32]
@@ -86,6 +90,7 @@ def test_out_of_place(
     atol, rtol = get_tolerance(_TOLERANCE_MAP, dtype)
     if DEBUG:
         debug(c, ans, atol=atol, rtol=rtol)
+    print(max(abs(c - ans).flatten()))
     assert torch.allclose(c, ans, atol=atol, rtol=rtol)
     print("out-of-place Test passed!")
 

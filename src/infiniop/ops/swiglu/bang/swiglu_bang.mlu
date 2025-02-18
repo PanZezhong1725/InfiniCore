@@ -11,10 +11,14 @@ __nram__  char nram_buffer[NRAM_MAX_SIZE];
 
 
 template <typename T>
-__mlu_global__ void swigluDim_2(T const *a_, T const *b_, T *c_, int stride_a, int stride_b, int stride_c, int othersize, int dimsize){
+__mlu_global__ void swigluKernel(T const *a_, T const *b_, T *c_, int *shape, int64_t *mlu_strides_a, int64_t *mlu_strides_b, int64_t *mlu_strides_c, int ndim){
     
     const int maxNum = SRC_MAX_SIZE/sizeof(T);
-    
+    int othersize = 1;
+    for(int j = 0; j < ndim - 1; j++){
+        othersize *= shape[j];
+    }
+    int dimsize = shape[ndim - 1];
     if(dimsize >= maxNum){
         T *src = (T *)nram_buffer;//[maxNum]
         T *dest = src + 3 * maxNum; //[maxNum]
@@ -34,9 +38,12 @@ __mlu_global__ void swigluDim_2(T const *a_, T const *b_, T *c_, int stride_a, i
             int ind_b = 0;
             int ind_c = 0;
             int indi = i;
-            ind_a += (indi % othersize) * stride_a;
-            ind_b += (indi % othersize) * stride_b;
-            ind_c += (indi % othersize) * stride_c;
+            for(int j = ndim - 2; j >= 0; j--){
+                ind_a += (indi % shape[j]) * mlu_strides_a[j];
+                ind_b += (indi % shape[j]) * mlu_strides_b[j];
+                ind_c += (indi % shape[j]) * mlu_strides_c[j];
+                indi = indi / shape[j];
+            }
             for(int s = 0; s < repeat + 2; s++){
                 
                 if(s < repeat){
@@ -83,9 +90,12 @@ __mlu_global__ void swigluDim_2(T const *a_, T const *b_, T *c_, int stride_a, i
             int ind_b = 0;
             int ind_c = 0;
             int indi = i;
-            ind_a += (indi % othersize) * stride_a;
-            ind_b += (indi % othersize) * stride_b;
-            ind_c += (indi % othersize) * stride_c;
+            for(int j = ndim - 2; j >= 0; j--){
+                ind_a += (indi % shape[j]) * mlu_strides_a[j];
+                ind_b += (indi % shape[j]) * mlu_strides_b[j];
+                ind_c += (indi % shape[j]) * mlu_strides_c[j];
+                indi = indi / shape[j];
+            }
             __memcpy(src, a_ + ind_a, dimsize * sizeof(T), GDRAM2NRAM);
             __memcpy(dest, b_ + ind_b, dimsize * sizeof(T), GDRAM2NRAM);
             
@@ -99,8 +109,7 @@ __mlu_global__ void swigluDim_2(T const *a_, T const *b_, T *c_, int stride_a, i
     }
 }
 template<typename T>
-void swigluUnionDim_2(cnrtQueue_t queue, void const *a, void const *b, void *c, int stride_a, int stride_b, int stride_c, int othersize, int dimsize) {
-    
+void swigluUnion(cnrtQueue_t queue, void const *a, void const *b, void *c, int *shape, int64_t *mlu_strides_a, int64_t *mlu_strides_b, int64_t *mlu_strides_c, int ndim) {
     auto c_ = reinterpret_cast<T *>(c);
     auto a_ = reinterpret_cast<T const *>(a);
     auto b_ = reinterpret_cast<T const *>(b);
@@ -113,27 +122,19 @@ void swigluUnionDim_2(cnrtQueue_t queue, void const *a, void const *b, void *c, 
     k_dim.z = 1;
     k_type = CNRT_FUNC_TYPE_UNION1;
     
-    swigluDim_2<T><<<k_dim, k_type, queue>>>(a_, b_, c_, stride_a, stride_b, stride_c, othersize, dimsize);
+    swigluKernel<T><<<k_dim, k_type, queue>>>(a_, b_, c_, shape, mlu_strides_a, mlu_strides_b, mlu_strides_c, ndim);
     
 }
 
 void bangSwiGLUBang(infiniopSwiGLUBangDescriptor_t desc, void const *a, void const *b, void *c, void *stream) {
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);
-    auto seq_len = desc->seq_len,
-         di = desc->di;
-
-    auto stride_a = desc->stride_a,
-         stride_b = desc->stride_b,
-         stride_c = desc->stride_c;
-
+    
     if (desc->dtype == INFINI_DTYPE_F16){
-        swigluUnionDim_2<half>(queue, a, b, c, stride_a, stride_b, stride_c, seq_len, di);
+        swigluUnion<half>(queue, a, b, c, desc->shape, desc->strides_a, desc->strides_b, desc->strides_c, desc->ndim);
     }
     else if (desc->dtype == INFINI_DTYPE_F32){
-        swigluUnionDim_2<float>(queue, a, b, c, stride_a, stride_b, stride_c, seq_len, di);
+        swigluUnion<float>(queue, a, b, c, desc->shape, desc->strides_a, desc->strides_b, desc->strides_c, desc->ndim);
     }
-    
-    
     
 }
 infiniopStatus_t bangSwiGLU(infiniopSwiGLUBangDescriptor_t desc,
