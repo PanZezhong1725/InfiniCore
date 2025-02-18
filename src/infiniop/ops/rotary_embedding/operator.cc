@@ -1,21 +1,25 @@
 #include "infiniop/ops/rotary_embedding.h"
 
+#ifdef ENABLE_CPU_API
+#include "cpu/rope_cpu_api.h"
+#endif
+
 __C infiniopStatus_t infiniopCreateRoPEDescriptor(
     infiniopHandle_t handle, infiniopRoPEDescriptor_t *desc_ptr,
     infiniopTensorDescriptor_t t, infiniopTensorDescriptor_t pos_ids,
     infiniopTensorDescriptor_t sin_table,
     infiniopTensorDescriptor_t cos_table) {
     switch (handle->device) {
-#ifdef ENABLE_CPU
-    case DevCpu:
-        return cpuCreateRoPEDescriptor((CpuHandle_t)handle,
-                                       (RoPECpuDescriptor_t *)desc_ptr, t,
+#ifdef ENABLE_CPU_API
+    case INFINI_DEVICE_CPU:
+        return cpuCreateRoPEDescriptor((infiniopCpuHandle_t)handle,
+                                       (infiniopRoPECpuDescriptor_t *)desc_ptr, t,
                                        pos_ids, sin_table, cos_table);
 #endif
 #ifdef ENABLE_NV_GPU
     case DevNvGpu: {
         return cudaCreateRoPEDescriptor((CudaHandle_t)handle,
-                                        (RoPECudaDescriptor_t *)desc_ptr, t,
+                                        (infiniopRoPECpuDescriptor_t *)desc_ptr, t,
                                         pos_ids, sin_table, cos_table);
     }
 
@@ -55,9 +59,10 @@ __C infiniopStatus_t infiniopCreateRoPEDescriptor(
 __C infiniopStatus_t infiniopGetRoPEWorkspaceSize(infiniopRoPEDescriptor_t desc,
                                                   size_t *size) {
     switch (desc->device) {
-#ifdef ENABLE_CPU
-    case DevCpu:
-        return cpuGetRoPEWorkspaceSize((RoPECpuDescriptor_t)desc, size);
+#ifdef ENABLE_CPU_API
+    case INFINI_DEVICE_CPU:
+        *size = 0;
+        return INFINIOP_STATUS_SUCCESS;
 #endif
 #ifdef ENABLE_NV_GPU
     case DevNvGpu: {
@@ -95,10 +100,9 @@ __C infiniopStatus_t infiniopRoPE(infiniopRoPEDescriptor_t desc,
                                   void const *sin_table, void const *cos_table,
                                   void *stream) {
     switch (desc->device) {
-#ifdef ENABLE_CPU
-    case DevCpu:
-        return cpuRoPE((RoPECpuDescriptor_t)desc, workspace, workspace_size, t,
-                       pos_ids, sin_table, cos_table, stream);
+#ifdef ENABLE_CPU_API
+    case INFINI_DEVICE_CPU:
+        return cpuRoPE((infiniopRoPECpuDescriptor_t)desc, t, pos_ids, sin_table, cos_table);
 #endif
 #ifdef ENABLE_NV_GPU
     case DevNvGpu: {
@@ -139,9 +143,9 @@ __C infiniopStatus_t infiniopRoPE(infiniopRoPEDescriptor_t desc,
 __C infiniopStatus_t
 infiniopDestroyRoPEDescriptor(infiniopRoPEDescriptor_t desc) {
     switch (desc->device) {
-#ifdef ENABLE_CPU
-    case DevCpu:
-        return cpuDestroyRoPEDescriptor((RoPECpuDescriptor_t)desc);
+#ifdef ENABLE_CPU_API
+    case INFINI_DEVICE_CPU:
+        return cpuDestroyRoPEDescriptor((infiniopRoPECpuDescriptor_t)desc);
 #endif
 #ifdef ENABLE_NV_GPU
     case DevNvGpu: {
