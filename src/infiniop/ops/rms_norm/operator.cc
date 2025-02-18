@@ -24,7 +24,7 @@ __C infiniopStatus_t infiniopCreateRMSNormDescriptor(
 #endif
 #ifdef ENABLE_ASCEND_NPU
     case DevAscendNpu: {
-        return aclnnCreateRMSNormDescriptor((AscendHandle_t)handle,
+        return aclnnCreateRMSNormDescriptor((infiniopAscendHandle_t)handle,
                                             (RMSNormAclnnDescriptor_t *)desc_ptr,
                                             y_desc,
                                             x_desc,
