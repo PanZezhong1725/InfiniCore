@@ -1,5 +1,9 @@
 #include "infiniop/ops/random_sample.h"
 
+#ifdef ENABLE_ASCEND_API
+#include "ascend/random_sample_ascend_api.h"
+#endif
+
 __C infiniopStatus_t infiniopCreateRandomSampleDescriptor(infiniopHandle_t handle, infiniopRandomSampleDescriptor_t *desc_ptr, infiniopTensorDescriptor_t result, infiniopTensorDescriptor_t probs) {
     switch (handle->device) {
 #ifdef ENABLE_CPU
@@ -17,10 +21,10 @@ __C infiniopStatus_t infiniopCreateRandomSampleDescriptor(infiniopHandle_t handl
                                                 probs);
     }
 #endif
-#ifdef ENABLE_ASCEND_NPU
-    case DevAscendNpu: {
-        return ascendCreateRandomSampleDescriptor((AscendHandle_t)handle,
-                                                  (RandomSampleAscendDescriptor_t *)desc_ptr, result, probs);
+#ifdef ENABLE_ASCEND_API
+    case INFINI_DEVICE_ASCEND: {
+        return ascendCreateRandomSampleDescriptor((infiniopAscendHandle_t)handle,
+                                                  (infiniopRandomSampleAscendDescriptor_t *)desc_ptr, result, probs);
     }
 #endif
 #ifdef ENABLE_METAX_GPU
@@ -56,9 +60,9 @@ __C infiniopStatus_t infiniopGetRandomSampleWorkspaceSize(infiniopRandomSampleDe
         // return cnnlGetRandomSampleWorkspaceSize((RandomSampleCnnlDescriptor_t) desc, size);
     }
 #endif
-#ifdef ENABLE_ASCEND_NPU
-    case DevAscendNpu: {
-        return ascendGetRandomSampleWorkspaceSize((RandomSampleAscendDescriptor_t)desc, size);
+#ifdef ENABLE_ASCEND_API
+    case INFINI_DEVICE_ASCEND: {
+        return ascendGetRandomSampleWorkspaceSize((infiniopRandomSampleAscendDescriptor_t)desc, size);
     }
 #endif
 #ifdef ENABLE_METAX_GPU
@@ -99,9 +103,9 @@ __C infiniopStatus_t infiniopRandomSample(infiniopRandomSampleDescriptor_t desc,
         return bangRandomSample((RandomSampleBangDescriptor_t)desc, workspace, workspace_size, result, probs, random_val, topp, topk, temperature, stream);
     }
 #endif
-#ifdef ENABLE_ASCEND_NPU
-    case DevAscendNpu: {
-        return ascendRandomSample((RandomSampleAscendDescriptor_t)desc, workspace, workspace_size, result, probs, random_val, topp, topk, temperature, stream);
+#ifdef ENABLE_ASCEND_API
+    case INFINI_DEVICE_ASCEND: {
+        return ascendRandomSample((infiniopRandomSampleAscendDescriptor_t)desc, workspace, workspace_size, result, probs, random_val, topp, topk, temperature, stream);
     }
 #endif
 #ifdef ENABLE_METAX_GPU
@@ -132,9 +136,9 @@ __C infiniopStatus_t infiniopDestroyRandomSampleDescriptor(infiniopRandomSampleD
         return bangDestroyRandomSampleDescriptor((RandomSampleBangDescriptor_t)desc);
     }
 #endif
-#ifdef ENABLE_ASCEND_NPU
-    case DevAscendNpu: {
-        return ascendDestroyRandomSampleDescriptor((RandomSampleAscendDescriptor_t)desc);
+#ifdef ENABLE_ASCEND_API
+    case INFINI_DEVICE_ASCEND: {
+        return ascendDestroyRandomSampleDescriptor((infiniopRandomSampleAscendDescriptor_t)desc);
     }
 #endif
 #ifdef ENABLE_METAX_GPU

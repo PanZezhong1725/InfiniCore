@@ -48,8 +48,7 @@ target("infiniop-ascend")
     add_cxflags("-lstdc++ -Wall -Werror -fPIC")
 
     -- Add operator
-    -- TODO: add it back after ascend-kernels is fixed
-    -- add_rules("ascend-kernels")
-    -- add_links(builddir.."/libascend_kernels.a")
+    add_rules("ascend-kernels")
+    add_links(builddir.."/libascend_kernels.a")
 
 target_end()
