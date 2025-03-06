@@ -25,7 +25,7 @@ __C infiniStatus_t infiniopCreateCausalSoftmaxDescriptor(
 #endif
 #ifdef ENABLE_ASCEND_NPU
     case DevAscendNpu: {
-        return aclnnCreateCausalSoftmaxDescriptor((AscendHandle_t)handle, (CausalSoftmaxAclnnDescriptor_t *)desc_ptr, y_desc);
+        return aclnnCreateCausalSoftmaxDescriptor((infiniopAscendHandle_t)handle, (CausalSoftmaxAclnnDescriptor_t *)desc_ptr, y_desc);
     }
 #endif
 #ifdef ENABLE_METAX_GPU
