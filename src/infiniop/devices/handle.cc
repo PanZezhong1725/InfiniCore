@@ -49,9 +49,7 @@ __C infiniStatus_t infiniopCreateHandle(infiniopHandle_t *handle_ptr) {
     }
 #endif
 #ifdef ENABLE_KUNLUN_API
-    case INFINI_DEVICE_KUNLUN: {
-        return createKunlunHandle((infiniopKunlunHandle_t *)handle_ptr);
-    }
+        CREATE(INFINI_DEVICE_KUNLUN, kunlun);
 #endif
 
     default:
@@ -86,9 +84,7 @@ __C infiniStatus_t infiniopDestroyHandle(infiniopHandle_t handle) {
     }
 #endif
 #ifdef ENABLE_KUNLUN_API
-    case INFINI_DEVICE_KUNLUN: {
-        return destroyKunlunHandle((infiniopKunlunHandle_t)handle);
-    }
+        DELETE(INFINI_DEVICE_KUNLUN, kunlun);
 #endif
     default:
         return INFINI_STATUS_DEVICE_TYPE_NOT_SUPPORTED;
