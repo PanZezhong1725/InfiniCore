@@ -34,7 +34,7 @@ infiniStatus_t Descriptor::create(
     infiniopTensorDescriptor_t c_desc,
     infiniopTensorDescriptor_t a_desc,
     infiniopTensorDescriptor_t b_desc) {
-    auto handle = reinterpret_cast<infiniopAscendHandle_t>(handle_);
+    auto handle = reinterpret_cast<device::ascend::Handle *>(handle_);
     auto dtype = c_desc->dtype();
 
     if (dtype != INFINI_DTYPE_F16 && dtype != INFINI_DTYPE_F32) {

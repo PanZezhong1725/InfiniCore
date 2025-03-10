@@ -1,15 +1,12 @@
-#include "common_ascend.h"
+#include "ascend_handle.h"
 
-infiniStatus_t createAscendHandle(infiniopAscendHandle_t *handle_ptr) {
-    int device_id = 0;
-    CHECK_ACL(aclrtGetDevice(&device_id));
+namespace device::ascend {
 
-    *handle_ptr = new InfiniopAscendHandle{INFINI_DEVICE_ASCEND, device_id};
+Handle::Handle() : InfiniopHandle{INFINI_DEVICE_ASCEND, 0} {}
 
+infiniStatus_t Handle::create(InfiniopHandle **Handle_ptr, int) {
+    *Handle_ptr = new Handle();
     return INFINI_STATUS_SUCCESS;
 }
 
-infiniStatus_t destroyAscendHandle(infiniopAscendHandle_t handle_ptr) {
-    delete handle_ptr;
-    return INFINI_STATUS_SUCCESS;
-}
+} // namespace device::ascend

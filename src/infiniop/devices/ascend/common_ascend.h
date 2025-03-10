@@ -2,7 +2,6 @@
 #define __INFINIOP_COMMON_ASCEND_H__
 
 #include "../../../utils.h"
-#include "ascend_handle.h"
 #include <acl/acl.h>
 #include <acl/acl_base.h>
 #include <acl/acl_rt.h>
@@ -20,11 +19,6 @@ extern "C" {
 #ifdef __cplusplus
 };
 #endif
-
-struct InfiniopAscendHandle {
-    infiniDevice_t device;
-    int device_id;
-};
 
 const char *dataTypeToString(aclDataType dtype);
 const char *formatToString(aclFormat format);
