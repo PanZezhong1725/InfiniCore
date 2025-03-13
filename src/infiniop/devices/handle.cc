@@ -42,9 +42,7 @@ __C infiniStatus_t infiniopCreateHandle(infiniopHandle_t *handle_ptr) {
         CREATE(INFINI_DEVICE_CAMBRICON, bang::cambricon);
 #endif
 #ifdef ENABLE_ASCEND_API
-    case INFINI_DEVICE_ASCEND: {
-        return createAscendHandle((infiniopAscendHandle_t *)handle_ptr);
-    }
+        CREATE(INFINI_DEVICE_ASCEND, ascend);
 #endif
 #ifdef ENABLE_KUNLUN_API
     case INFINI_DEVICE_KUNLUN: {
@@ -77,9 +75,7 @@ __C infiniStatus_t infiniopDestroyHandle(infiniopHandle_t handle) {
         DELETE(INFINI_DEVICE_CAMBRICON, bang::cambricon);
 #endif
 #ifdef ENABLE_ASCEND_API
-    case INFINI_DEVICE_ASCEND: {
-        return destroyAscendHandle((infiniopAscendHandle_t)handle);
-    }
+        DELETE(INFINI_DEVICE_ASCEND, ascend);
 #endif
 #ifdef ENABLE_KUNLUN_API
     case INFINI_DEVICE_KUNLUN: {
