@@ -88,7 +88,8 @@ option("moore-gpu")
 option_end()
 
 if has_config("moore-gpu") then
-    add_defines("ENABLE_MUSA_API")
+    add_defines("ENABLE_MOORE_API")
+    includes("xmake/musa.lua")
 end
 
 -- 海光
@@ -134,6 +135,9 @@ target("infinirt")
     if has_config("ascend-npu") then
         add_deps("infinirt-ascend")
     end
+    if has_config("moore-gpu") then
+        add_deps("infinirt-moore")
+    end
     set_languages("cxx17")
     set_installdir(os.getenv("INFINI_ROOT") or (os.getenv(is_host("windows") and "HOMEPATH" or "HOME") .. "/.infini"))
     add_files("src/infinirt/*.cc")
@@ -173,6 +177,9 @@ target("infiniop")
     end
     if has_config("metax-gpu") then
         add_deps("metax-gpu")
+    end
+    if has_config("moore-gpu") then
+        add_deps("infiniop-moore")
     end
     if has_config("kunlun-xpu") then
         add_deps("infiniop-kunlun")
