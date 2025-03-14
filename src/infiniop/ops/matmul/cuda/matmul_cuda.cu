@@ -61,7 +61,7 @@ infiniStatus_t Descriptor::calculate(
 #ifdef ENABLE_SUGON_CUDA_API
         compute_type = CUBLAS_COMPUTE_32F;
 #else
-        compute_type = CUBLAS_COMPUTE_32F_FAST_TF32;
+        compute_type = CUBLAS_COMPUTE_32F;
 #endif
         break;
 
