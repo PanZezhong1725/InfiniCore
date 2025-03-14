@@ -109,7 +109,7 @@ std::shared_ptr<Result> runTest(const GGUFFileReader &gguf_reader,
 
         std::shared_ptr<Result> result;
         try {
-            result = test->run(handle, device, device_id, warm_ups, iterations);
+            result = test->run(handle, device, device_id, warm_ups, iterations, rtol, atol);
         } catch (const std::exception &e) {
             return TEST_INIT_FAILED(op_name + "/n" + e.what());
         }
@@ -150,9 +150,13 @@ void allClose(std::shared_ptr<Tensor> actual_, std::shared_ptr<Tensor> expected_
               expected_offset = 0;
     size_t num_failed = 0;
     std::string first_failed_msg;
+    double atols = 0.0;
+    double rtols = 0.0;
     for (size_t i = 0; i < total; i++) {
         double a_ = getVal((char *)actual->data() + actual_offset, actual->ggml_type());
         double e_ = getVal((char *)expected->data() + expected_offset, expected->ggml_type());
+        atols = std::fmax(atols, std::fabs(a_ - e_));
+        rtols = std::fmax(rtols, std::fabs(a_ - e_) / std::fmax(std::fabs(a_), std::fabs(e_)));
         if (std::fabs(a_ - e_) > atol || std::fabs(a_ - e_) > rtol * std::fmax(std::fabs(a_), std::fabs(e_))) {
             if (num_failed == 0) {
                 first_failed_msg = "First failed at index " + std::to_string(i) + " with value " + std::to_string(a_) + " but should be " + std::to_string(e_) + ".";
@@ -164,6 +168,7 @@ void allClose(std::shared_ptr<Tensor> actual_, std::shared_ptr<Tensor> expected_
                         counter, shape);
     }
     if (num_failed > 0) {
+        std::cout << "max atols:" << atols << "," << "max rtols:" << rtols << std::endl;
         throw std::runtime_error(std::to_string(num_failed) + " out of " + std::to_string(total) + " values failed. " + first_failed_msg);
     }
 }
