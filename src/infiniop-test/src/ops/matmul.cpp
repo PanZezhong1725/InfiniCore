@@ -42,7 +42,7 @@ std::shared_ptr<Test> Test::build(
 }
 
 std::shared_ptr<infiniop_test::Result> Test::run(
-    infiniopHandle_t handle, infiniDevice_t device, int device_id, size_t warm_ups, size_t iterations, double rtol, double atol) {
+    infiniopHandle_t handle, infiniDevice_t device, int device_id, size_t warm_ups, size_t iterations) {
     infiniopMatmulDescriptor_t op_desc;
     auto alpha = _attributes->alpha;
     auto beta = _attributes->beta;
@@ -70,7 +70,7 @@ std::shared_ptr<infiniop_test::Result> Test::run(
              return TEST_FAILED(OP_EXECUTION_FAILED, "Failed during execution."));
 
     try {
-        allClose(c, _attributes->ans, rtol, atol);
+        allClose(c, _attributes->ans, _rtol, _atol);
     } catch (const std::exception &e) {
         return TEST_FAILED(RESULT_INCORRECT, e.what());
     }

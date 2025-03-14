@@ -109,7 +109,7 @@ std::shared_ptr<Result> runTest(const GGUFFileReader &gguf_reader,
 
         std::shared_ptr<Result> result;
         try {
-            result = test->run(handle, device, device_id, warm_ups, iterations, rtol, atol);
+            result = test->run(handle, device, device_id, warm_ups, iterations);
         } catch (const std::exception &e) {
             return TEST_INIT_FAILED(op_name + "/n" + e.what());
         }
