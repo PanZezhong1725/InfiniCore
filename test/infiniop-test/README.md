@@ -35,6 +35,19 @@ infiniop-test --help
 infiniop-test matmul.gguf --cpu --warmup 20 --run 1000
 ```
 
+测试程序需要根据不同平台做出一定的调整，比如说在英伟达A100服务器上，打印测试程序用法命令为：
+
+```bash
+cd InfiniCore/
+./build/linux/x86_64/release/infiniop-test --help
+```
+
+根据上面命令生成的matmul.gguf文件位置，在英伟达测试，预热20次，测试1000次：
+
+```bash
+./build/linux/x86_64/release/infiniop-test test/infiniop-test/matmul.gguf --nvidia --warmup 20 --run 1000 --atol 0 --rtol 1e-2
+```
+
 ## 自定义测例
 
 ### GGUF文件格式
