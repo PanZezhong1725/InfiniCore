@@ -6,6 +6,7 @@
  * Declare all the tests here
  */
 DECLARE_INFINIOP_TEST(gemm)
+DECLARE_INFINIOP_TEST(random_sample)
 
 #define REGISTER_INFINIOP_TEST(name)                    \
     {                                                   \
@@ -18,9 +19,10 @@ DECLARE_INFINIOP_TEST(gemm)
 /*
  * Register all the tests here
  */
-#define TEST_BUILDER_MAPPINGS         \
-    {                                 \
-        REGISTER_INFINIOP_TEST(gemm), \
+#define TEST_BUILDER_MAPPINGS                  \
+    {                                          \
+        REGISTER_INFINIOP_TEST(gemm),          \
+        REGISTER_INFINIOP_TEST(random_sample), \
     }
 
 namespace infiniop_test {
