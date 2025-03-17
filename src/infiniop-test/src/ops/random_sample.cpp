@@ -14,6 +14,7 @@ struct Test::Attributes {
 
     std::shared_ptr<Tensor> data;
     std::shared_ptr<Tensor> ans;
+    std::shared_ptr<Tensor> result;
 };
 
 std::shared_ptr<Test> Test::build(
@@ -28,7 +29,8 @@ std::shared_ptr<Test> Test::build(
         || attributes.find("voc") == attributes.end()
         || attributes.find("temperature") == attributes.end()
         || tensors.find("data") == tensors.end()
-        || tensors.find("ans") == tensors.end()) {
+        || tensors.find("ans") == tensors.end()
+        || tensors.find("result") == tensors.end()) {
         throw std::runtime_error("Invalid Test");
     }
 
@@ -40,6 +42,7 @@ std::shared_ptr<Test> Test::build(
 
     test->_attributes->data = tensors["data"];
     test->_attributes->ans = tensors["ans"];
+    test->_attributes->result = tensors["result"];
 
     return test;
 }
@@ -50,12 +53,11 @@ std::shared_ptr<infiniop_test::Result> Test::run(
     auto random_val = _attributes->random_val;
     auto topp = _attributes->topp;
     auto topk = _attributes->topk;
-    // auto voc = _attributes->voc;
     auto temperature = _attributes->temperature;
     auto data = _attributes->data->to(device, device_id);
-    auto ans = _attributes->ans->to(device, device_id);
+    auto result = _attributes->result->to(device, device_id);
     CHECK_OR(infiniopCreateRandomSampleDescriptor(handle, &op_desc,
-                                                  ans->desc(),
+                                                  result->desc(),
                                                   data->desc()),
              return TEST_FAILED(OP_CREATION_FAILED, "Failed to create op descriptor."));
     size_t workspace_size;
@@ -65,7 +67,7 @@ std::shared_ptr<infiniop_test::Result> Test::run(
     CHECK_OR(infinirtMalloc(&workspace, workspace_size),
              return TEST_FAILED(OP_CREATION_FAILED, "Failed to allocate workspace."));
     CHECK_OR(infiniopRandomSample(op_desc, workspace, workspace_size,
-                                  ans->data(),
+                                  result->data(),
                                   data->data(),
                                   random_val,
                                   topp,
@@ -75,7 +77,7 @@ std::shared_ptr<infiniop_test::Result> Test::run(
              return TEST_FAILED(OP_EXECUTION_FAILED, "Failed during execution."));
 
     try {
-        allClose(ans, _attributes->ans, _rtol, _atol);
+        allClose(result, _attributes->ans, _rtol, _atol);
     } catch (const std::exception &e) {
         return TEST_FAILED(RESULT_INCORRECT, e.what());
     }
@@ -86,7 +88,7 @@ std::shared_ptr<infiniop_test::Result> Test::run(
         [=]() {
             infiniopRandomSample(
                 op_desc, workspace, workspace_size,
-                ans->data(),
+                result->data(),
                 data->data(),
                 random_val,
                 topp,
@@ -104,7 +106,7 @@ std::vector<std::string> Test::attribute_names() {
 }
 
 std::vector<std::string> Test::tensor_names() {
-    return {"data", "ans"};
+    return {"data", "ans", "result"};
 }
 
 std::string Test::toString() const {
@@ -117,6 +119,7 @@ std::string Test::toString() const {
         << ", temperature=" << _attributes->temperature << std::endl;
     oss << "- data: " << _attributes->data->info() << std::endl;
     oss << "- ans: " << _attributes->ans->info() << std::endl;
+    oss << "- result: " << _attributes->result->info() << std::endl;
     oss << std::scientific << std::setprecision(2);
     oss << "- rtol=" << _rtol << ", atol=" << _atol << std::endl;
     return oss.str();
@@ -127,4 +130,3 @@ Test::~Test() {
 }
 
 } // namespace infiniop_test::random_sample
-

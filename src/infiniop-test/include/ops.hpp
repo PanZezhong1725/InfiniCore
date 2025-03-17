@@ -19,10 +19,10 @@ DECLARE_INFINIOP_TEST(random_sample)
 /*
  * Register all the tests here
  */
-#define TEST_BUILDER_MAPPINGS                  \
-    {                                          \
-        REGISTER_INFINIOP_TEST(matmul),        \
-        REGISTER_INFINIOP_TEST(random_sample), \
+#define TEST_BUILDER_MAPPINGS                      \
+    {                                              \
+        REGISTER_INFINIOP_TEST(matmul),            \
+            REGISTER_INFINIOP_TEST(random_sample), \
     }
 
 namespace infiniop_test {
