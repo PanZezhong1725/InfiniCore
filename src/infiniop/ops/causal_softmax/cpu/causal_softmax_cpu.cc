@@ -17,7 +17,7 @@ infiniStatus_t Descriptor::create(
 
 infiniStatus_t causal_softmaxF16(const CausalSoftmaxInfo *info, fp16_t *data) {
 #pragma omp parallel for
-    for (size_t index = 0; index < info->batch_size * info->seq_len; index++) {
+    for (ptrdiff_t index = 0; index < ptrdiff_t(info->batch_size * info->seq_len); index++) {
         size_t ind = index;
         size_t offset = 0;
         size_t i = (ind % info->seq_len);
@@ -46,7 +46,7 @@ infiniStatus_t causal_softmaxF16(const CausalSoftmaxInfo *info, fp16_t *data) {
 
 infiniStatus_t causal_softmaxF32(const CausalSoftmaxInfo *info, float *data) {
 #pragma omp parallel for
-    for (size_t index = 0; index < info->batch_size * info->seq_len; index++) {
+    for (ptrdiff_t index = 0; index < ptrdiff_t(info->batch_size * info->seq_len); index++) {
         size_t ind = index;
         size_t offset = 0;
         size_t i = (ind % info->seq_len);
