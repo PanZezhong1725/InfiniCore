@@ -27,7 +27,7 @@ using ReduceToSame = std::disjunction<
     std::is_same<T, int64_t>>;
 
 template <typename T, typename = std::enable_if_t<ReduceToSame<T>::value>>
-T sum(const T *data, size_t len, ptrdiff_t stride = 1) {
+inline T sum(const T *data, size_t len, ptrdiff_t stride = 1) {
     T result = 0;
     for (size_t i = 0; i < len; i++) {
         result += data[i * stride];
@@ -36,7 +36,7 @@ T sum(const T *data, size_t len, ptrdiff_t stride = 1) {
     return result;
 }
 
-float sum(const fp16_t *data, size_t len, ptrdiff_t stride = 1) {
+inline float sum(const fp16_t *data, size_t len, ptrdiff_t stride = 1) {
     float result = 0;
     for (size_t i = 0; i < len; i++) {
         result += utils::cast<float>(data[i * stride]);
@@ -46,7 +46,7 @@ float sum(const fp16_t *data, size_t len, ptrdiff_t stride = 1) {
 }
 
 template <typename T, typename = std::enable_if_t<ReduceToSame<T>::value>>
-T sumSquared(const T *data, size_t len, ptrdiff_t stride = 1) {
+inline T sumSquared(const T *data, size_t len, ptrdiff_t stride = 1) {
     T result = 0;
     for (size_t i = 0; i < len; i++) {
         T val = data[i * stride];
@@ -56,7 +56,7 @@ T sumSquared(const T *data, size_t len, ptrdiff_t stride = 1) {
     return result;
 }
 
-float sumSquared(const fp16_t *data, size_t len, ptrdiff_t stride = 1) {
+inline float sumSquared(const fp16_t *data, size_t len, ptrdiff_t stride = 1) {
     float result = 0;
     for (size_t i = 0; i < len; i++) {
         float val = utils::cast<float>(data[i * stride]);
