@@ -118,7 +118,6 @@ std::string Test::toString() const {
         << ", voc=" << _attributes->voc << std::endl
         << ", temperature=" << _attributes->temperature << std::endl;
     oss << "- data: " << _attributes->data->info() << std::endl;
-    oss << "- ans: " << _attributes->ans->info() << std::endl;
     oss << "- result: " << _attributes->result->info() << std::endl;
     oss << std::scientific << std::setprecision(2);
     oss << "- rtol=" << _rtol << ", atol=" << _atol << std::endl;
