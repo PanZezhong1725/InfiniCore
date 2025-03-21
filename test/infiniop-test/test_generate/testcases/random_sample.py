@@ -32,7 +32,6 @@ def random_sample(
     voc: int = 32000,
     temperature: float = 1.0,
 ):
-    result = np.zeros([1]).astype(np.int64)
     if topp > 0 and topk > 1:
         indices = np.zeros([topk], dtype=np.int64)
         dataNp = data.copy()
@@ -74,13 +73,9 @@ def random_sample(
         for i in range(end):
             sum_s += dataNp[i]
             if random_val < sum_s:
-                result[0] = indices[i]
-                break
-
-        return result
+                return indices[i]
     else:
-        result[0] = np.argmax(data)
-        return result
+        return np.argmax(data)
 
 
 class RandomSampleTestCase(InfiniopTestCase):
@@ -115,7 +110,7 @@ class RandomSampleTestCase(InfiniopTestCase):
             self.voc,
             self.temperature,
         )
-        result = np.zeros([1]).astype(np.int64)
+        result = np.int64(0)
         test_writer.add_tensor(
             test_writer.gguf_key("data"),
             self.data,
@@ -136,111 +131,111 @@ if __name__ == "__main__":
             3,
             0.5,
         ),
-        # RandomSampleTestCase(
-        #     sample(4096, 5, np.float32),
-        #     0.05,
-        #     0.9,
-        #     5,
-        #     1.0,
-        # ),
-        # RandomSampleTestCase(
-        #     sample(16384, 10, np.float32),
-        #     0.15,
-        #     0.85,
-        #     10,
-        #     2.0,
-        # ),
-        # RandomSampleTestCase(
-        #     sample(512, 3, np.float32),
-        #     0.08,
-        #     0,
-        #     3,
-        #     0.5,
-        # ),
-        # RandomSampleTestCase(
-        #     sample(4096, 1, np.float32),
-        #     0.5,
-        #     0.9,
-        #     1,
-        #     1.0,
-        # ),
-        # RandomSampleTestCase(
-        #     sample(16384, 1, np.float32),
-        #     0.15,
-        #     0,
-        #     1,
-        #     2.0,
-        # ),
-        # RandomSampleTestCase(
-        #     sample(32000, 50, np.float32),
-        #     0.08,
-        #     0.8,
-        #     50,
-        #     1.0,
-        # ),
-        # RandomSampleTestCase(
-        #     sample(32000, 25, np.float32),
-        #     0.08,
-        #     1.0,
-        #     25,
-        #     1.0,
-        # ),
-        # RandomSampleTestCase(
-        #     sample(512, 3, np.float16),
-        #     0.8,
-        #     0.8,
-        #     3,
-        #     0.5,
-        # ),
-        # RandomSampleTestCase(
-        #     sample(4096, 5, np.float16),
-        #     0.05,
-        #     0.9,
-        #     5,
-        #     1.0,
-        # ),
-        # RandomSampleTestCase(
-        #     sample(16384, 10, np.float16),
-        #     0.15,
-        #     0.85,
-        #     10,
-        #     2.0,
-        # ),
-        # RandomSampleTestCase(
-        #     sample(512, 3, np.float16),
-        #     0.08,
-        #     0,
-        #     3,
-        #     0.5,
-        # ),
-        # RandomSampleTestCase(
-        #     sample(4096, 1, np.float16),
-        #     0.5,
-        #     0.9,
-        #     1,
-        #     1.0,
-        # ),
-        # RandomSampleTestCase(
-        #     sample(16384, 1, np.float16),
-        #     0.15,
-        #     0,
-        #     1,
-        #     2.0,
-        # ),
-        # RandomSampleTestCase(
-        #     sample(32000, 50, np.float16),
-        #     0.08,
-        #     0.8,
-        #     50,
-        #     1.0,
-        # ),
-        # RandomSampleTestCase(
-        #     sample(32000, 25, np.float16),
-        #     0.08,
-        #     1.0,
-        #     25,
-        #     1.0,
-        # ),
+        RandomSampleTestCase(
+            sample(4096, 5, np.float32),
+            0.05,
+            0.9,
+            5,
+            1.0,
+        ),
+        RandomSampleTestCase(
+            sample(16384, 10, np.float32),
+            0.15,
+            0.85,
+            10,
+            2.0,
+        ),
+        RandomSampleTestCase(
+            sample(512, 3, np.float32),
+            0.08,
+            0,
+            3,
+            0.5,
+        ),
+        RandomSampleTestCase(
+            sample(4096, 1, np.float32),
+            0.5,
+            0.9,
+            1,
+            1.0,
+        ),
+        RandomSampleTestCase(
+            sample(16384, 1, np.float32),
+            0.15,
+            0,
+            1,
+            2.0,
+        ),
+        RandomSampleTestCase(
+            sample(32000, 50, np.float32),
+            0.08,
+            0.8,
+            50,
+            1.0,
+        ),
+        RandomSampleTestCase(
+            sample(32000, 25, np.float32),
+            0.08,
+            1.0,
+            25,
+            1.0,
+        ),
+        RandomSampleTestCase(
+            sample(512, 3, np.float16),
+            0.8,
+            0.8,
+            3,
+            0.5,
+        ),
+        RandomSampleTestCase(
+            sample(4096, 5, np.float16),
+            0.05,
+            0.9,
+            5,
+            1.0,
+        ),
+        RandomSampleTestCase(
+            sample(16384, 10, np.float16),
+            0.15,
+            0.85,
+            10,
+            2.0,
+        ),
+        RandomSampleTestCase(
+            sample(512, 3, np.float16),
+            0.08,
+            0,
+            3,
+            0.5,
+        ),
+        RandomSampleTestCase(
+            sample(4096, 1, np.float16),
+            0.5,
+            0.9,
+            1,
+            1.0,
+        ),
+        RandomSampleTestCase(
+            sample(16384, 1, np.float16),
+            0.15,
+            0,
+            1,
+            2.0,
+        ),
+        RandomSampleTestCase(
+            sample(32000, 50, np.float16),
+            0.08,
+            0.8,
+            50,
+            1.0,
+        ),
+        RandomSampleTestCase(
+            sample(32000, 25, np.float16),
+            0.08,
+            1.0,
+            25,
+            1.0,
+        ),
     ]
     test_writer.add_tests(test_cases)
     test_writer.save()
