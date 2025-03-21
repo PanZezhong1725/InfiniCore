@@ -103,7 +103,7 @@ class RandomSampleTestCase(InfiniopTestCase):
         test_writer.add_int32(test_writer.gguf_key("voc"), self.voc)
         test_writer.add_float32(test_writer.gguf_key("temperature"), self.temperature)
         ans = random_sample(
-            self.data.astype(np.float64),
+            self.data,
             self.random_val,
             self.topp,
             self.topk,
