@@ -8,6 +8,9 @@
 #include "cnrt.h"
 #include <functional>
 
+const int NRAM_MAX_SIZE = 1024 * 256;
+const int GDRAM_MAX_SIZE = 1024 * 1024 * 1024;
+
 #define CHECK_BANG(API) CHECK_INTERNAL(API, CNNL_STATUS_SUCCESS)
 
 namespace device::bang {
