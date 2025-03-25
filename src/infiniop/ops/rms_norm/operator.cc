@@ -38,7 +38,7 @@ __C infiniStatus_t infiniopCreateRMSNormDescriptor(
         CREATE(INFINI_DEVICE_NVIDIA, cuda)
 #endif
 #ifdef ENABLE_CAMBRICON_API
-    CREATE(INFINI_DEVICE_CAMBRICON, bang);
+        CREATE(INFINI_DEVICE_CAMBRICON, bang);
 #endif
 #ifdef ENABLE_ASCEND_NPU
     case DevAscendNpu: {
@@ -82,7 +82,7 @@ __C infiniStatus_t infiniopGetRMSNormWorkspaceSize(infiniopRMSNormDescriptor_t d
         GET(INFINI_DEVICE_NVIDIA, cuda)
 #endif
 #ifdef ENABLE_CAMBRICON_API
-    GET(INFINI_DEVICE_CAMBRICON, bang);
+        GET(INFINI_DEVICE_CAMBRICON, bang);
 #endif
 #ifdef ENABLE_ASCEND_NPU
     case DevAscendNpu: {
@@ -123,7 +123,7 @@ __C infiniStatus_t infiniopRMSNorm(infiniopRMSNormDescriptor_t desc, void *works
         CALCULATE(INFINI_DEVICE_NVIDIA, cuda)
 #endif
 #ifdef ENABLE_CAMBRICON_API
-    CALCULATE(INFINI_DEVICE_CAMBRICON, bang);
+        CALCULATE(INFINI_DEVICE_CAMBRICON, bang);
 #endif
 #ifdef ENABLE_ASCEND_NPU
     case DevAscendNpu: {
@@ -168,7 +168,7 @@ __C infiniStatus_t infiniopDestroyRMSNormDescriptor(infiniopRMSNormDescriptor_t 
         DESTROY(INFINI_DEVICE_NVIDIA, cuda)
 #endif
 #ifdef ENABLE_CAMBRICON_API
-    DESTROY(INFINI_DEVICE_CAMBRICON, bang);
+        DESTROY(INFINI_DEVICE_CAMBRICON, bang);
 #endif
 #ifdef ENABLE_ASCEND_NPU
     case DevAscendNpu: {

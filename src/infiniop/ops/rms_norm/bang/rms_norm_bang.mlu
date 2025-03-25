@@ -1,20 +1,19 @@
-#include "rms_norm_bang.h"
 #include "../../../devices/bang/common_bang.h"
 #include "../../../reduce/bang/reduce.h"
+#include "rms_norm_bang.h"
 
 __nram__ char nram_buffer[NRAM_MAX_SIZE];
 
-const int SRC_MAX_SIZE = 1024 * 32;//尽量取大一些
+const int SRC_MAX_SIZE = 1024 * 32; // 尽量取大一些
 
-
-__mlu_global__ void RMSNormF16(half *destination, half const *source, float const *weight, size_t *shape, ptrdiff_t *stride_y, ptrdiff_t *stride_x, float eps, int ndim, int dimS){
+__mlu_global__ void RMSNormF16(half *destination, half const *source, float const *weight, size_t *shape, ptrdiff_t *y_strides, ptrdiff_t *x_strides, float eps, int ndim, int dimS) {
     int othersize = 1;
-    for(int i = 0; i < ndim - 1; i++){
+    for (int i = 0; i < ndim - 1; i++) {
         othersize *= shape[i];
     }
     int dimsize = shape[ndim - 1];
 
-    const int maxNum = SRC_MAX_SIZE/sizeof(float);
+    const int maxNum = SRC_MAX_SIZE / sizeof(float);
     int wSize = 128 / sizeof(half);
 
     int remainT = othersize % taskDim;
@@ -23,42 +22,42 @@ __mlu_global__ void RMSNormF16(half *destination, half const *source, float cons
     int step = (taskId < remainT ? stepHard : stepEasy);
     int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
 
-    if(dimsize >= maxNum){
+    if (dimsize >= maxNum) {
 
         char *nram_buffer1 = nram_buffer + (3 * maxNum) * sizeof(half);
-        half *src = (half *)nram_buffer;//[2 * maxNum]
-        half *wet = src + maxNum;//[maxNum]
+        half *src = (half *)nram_buffer; //[2 * maxNum]
+        half *wet = src + maxNum;        //[maxNum]
 
-        float *wetTmp = (float *)nram_buffer1;//[maxNum]
-        float *destSumFinal = wetTmp + maxNum;//[wSize]
-        float *destSum = destSumFinal + wSize;//[wSize]
+        float *wetTmp = (float *)nram_buffer1; //[maxNum]
+        float *destSumFinal = wetTmp + maxNum; //[wSize]
+        float *destSum = destSumFinal + wSize; //[wSize]
 
         int remain = dimsize % maxNum;
         int repeat = (dimsize - remain) / maxNum;
 
-        for(int i = indStart; i < indStart + step; i++){
+        for (int i = indStart; i < indStart + step; i++) {
             int inds = 0;
             int indd = 0;
             int indi = i;
-            for(int j = ndim - 2; j >= 0; j--){
-                inds += (indi % shape[j]) * stride_x[j];
-                indd += (indi % shape[j]) * stride_y[j];
+            for (int j = ndim - 2; j >= 0; j--) {
+                inds += (indi % shape[j]) * x_strides[j];
+                indd += (indi % shape[j]) * y_strides[j];
                 indi = indi / shape[j];
             }
             __bang_write_zero(destSumFinal, wSize);
             __bang_write_zero(destSum, wSize);
-            for(int s = 0; s < repeat; s++){
+            for (int s = 0; s < repeat; s++) {
                 __memcpy(src + maxNum, source + inds + s * maxNum, maxNum * sizeof(half), GDRAM2NRAM);
-                __bang_mul(src + maxNum, src + maxNum, src + maxNum, maxNum);//src = src * src
+                __bang_mul(src + maxNum, src + maxNum, src + maxNum, maxNum); // src = src * src
 
                 ComputeSum(src, destSum, maxNum);
                 __bang_add(destSumFinal, destSumFinal, destSum, wSize);
             }
-            if(remain){
+            if (remain) {
                 __bang_write_zero(src, 2 * maxNum);
                 __bang_write_zero(destSum, wSize);
                 __memcpy(src + maxNum, source + inds + repeat * maxNum, remain * sizeof(half), GDRAM2NRAM);
-                __bang_mul(src + maxNum, src + maxNum, src + maxNum, maxNum);//src = src * src
+                __bang_mul(src + maxNum, src + maxNum, src + maxNum, maxNum); // src = src * src
                 ComputeSum(src, destSum, maxNum);
                 __bang_add(destSumFinal, destSumFinal, destSum, wSize);
             }
@@ -66,70 +65,69 @@ __mlu_global__ void RMSNormF16(half *destination, half const *source, float cons
             destSumFinal[0] += eps;
             destSumFinal[0] = pow(destSumFinal[0], 0.5);
             float globalSumInv = 1.0 / destSumFinal[0];
-            for(int s = 0; s < repeat; s++){
+            for (int s = 0; s < repeat; s++) {
                 __memcpy(src, source + inds + s * maxNum, maxNum * sizeof(half), GDRAM2NRAM);
                 __memcpy(wetTmp, weight + s * maxNum, maxNum * sizeof(float), GDRAM2NRAM);
                 __bang_float2half_dn(wet, wetTmp, maxNum);
-                __bang_mul(src, src, wet, maxNum);//src = src * wet
+                __bang_mul(src, src, wet, maxNum); // src = src * wet
                 __bang_mul_scalar(src, src, globalSumInv, maxNum);
                 __memcpy(destination + indd + s * maxNum, src, maxNum * sizeof(half), NRAM2GDRAM);
             }
-            if(remain){
+            if (remain) {
                 __memcpy(src, source + inds + repeat * maxNum, remain * sizeof(half), GDRAM2NRAM);
                 __memcpy(wetTmp, weight + repeat * maxNum, remain * sizeof(float), GDRAM2NRAM);
                 __bang_float2half_dn(wet, wetTmp, maxNum);
-                __bang_mul(src, src, wet, maxNum);//src = src * wet
+                __bang_mul(src, src, wet, maxNum); // src = src * wet
                 __bang_mul_scalar(src, src, globalSumInv, maxNum);
                 __memcpy(destination + indd + repeat * maxNum, src, remain * sizeof(half), NRAM2GDRAM);
             }
         }
-    }
-    else{
+    } else {
         char *nram_buffer1 = nram_buffer + (4 * dimS) * sizeof(half);
-        half *src = (half *)nram_buffer;//[dimS]
-        half *wet = src + dimS;//[dimS]
-        half *destSum = wet + dimS;//[2 * dimS]
-        
-        float *wetTmp = (float *)nram_buffer1;
-        float *destSumFinal = wetTmp + dimS;//[wSize]
+        half *src = (half *)nram_buffer; //[dimS]
+        half *wet = src + dimS;          //[dimS]
+        half *destSum = wet + dimS;      //[2 * dimS]
 
-        for(int i = indStart; i < indStart + step; i++){
+        float *wetTmp = (float *)nram_buffer1;
+        float *destSumFinal = wetTmp + dimS; //[wSize]
+
+        for (int i = indStart; i < indStart + step; i++) {
             __bang_write_zero(destSum, 2 * dimS);
             __bang_write_zero(src, dimS);
             __bang_write_zero(destSumFinal, wSize);
             int inds = 0;
             int indd = 0;
             int indi = i;
-            for(int j = ndim - 2; j >= 0; j--){
-                inds += (indi % shape[j]) * stride_x[j];
-                indd += (indi % shape[j]) * stride_y[j];
+            for (int j = ndim - 2; j >= 0; j--) {
+                inds += (indi % shape[j]) * x_strides[j];
+                indd += (indi % shape[j]) * y_strides[j];
                 indi = indi / shape[j];
             }
             __memcpy(src, source + inds, dimsize * sizeof(half), GDRAM2NRAM);
-            __bang_mul(destSum + dimS, src, src, dimsize);//src = src * src
-            ComputeSum(destSum, destSumFinal, dimS);//dimS必须是128/sizeof(half)的倍数
+            __bang_mul(destSum + dimS, src, src, dimsize); // src = src * src
+            ComputeSum(destSum, destSumFinal, dimS);       // dimS必须是128/sizeof(half)的倍数
             destSumFinal[0] /= dimsize;
             destSumFinal[0] += eps;
             destSumFinal[0] = pow(destSumFinal[0], 0.5);
             float globalSumInv = 1.0 / destSumFinal[0];
             __memcpy(wetTmp, weight, dimsize * sizeof(float), GDRAM2NRAM);
             __bang_float2half_dn(wet, wetTmp, dimsize);
-            __bang_mul(src, src, wet, dimsize);//src = src * wet
+            __bang_mul(src, src, wet, dimsize); // src = src * wet
             __bang_mul_scalar(src, src, globalSumInv, dimsize);
             __memcpy(destination + indd, src, dimsize * sizeof(half), NRAM2GDRAM);
         }
     }
 }
 
-template<typename T>
-__mlu_global__ void RMSNorm(T *destination, T const *source, T const *weight, size_t *shape, ptrdiff_t *stride_y, ptrdiff_t *stride_x, float eps, int ndim, int dimS){
+template <typename T>
+__mlu_global__ void RMSNorm(T *destination, T const *source, T const *weight, size_t *shape, ptrdiff_t *y_strides, ptrdiff_t *x_strides, float eps, int ndim, int dimS) {
     int othersize = 1;
-    for(int i = 0; i < ndim - 1; i++){
+    for (int i = 0; i < ndim - 1; i++) {
         othersize *= shape[i];
     }
     int dimsize = shape[ndim - 1];
 
-    const int maxNum = SRC_MAX_SIZE/sizeof(T);
+    const int maxNum = SRC_MAX_SIZE / sizeof(T);
     int wSize = 128 / sizeof(T);
 
     int remainT = othersize % taskDim;
@@ -138,42 +136,41 @@ __mlu_global__ void RMSNorm(T *destination, T const *source, T const *weight, si
     int step = (taskId < remainT ? stepHard : stepEasy);
     int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);
 
-    if(dimsize >= maxNum){
+    if (dimsize >= maxNum) {
         int offset = (sizeof(T) == 2 ? maxNum : 0);
         char *nram_buffer1 = nram_buffer + 2 * wSize * sizeof(float);
-        float *destSumFinal = (float *)nram_buffer;//[wSize]
-        float *destSum = destSumFinal + wSize;//[wSize]
+        float *destSumFinal = (float *)nram_buffer; //[wSize]
+        float *destSum = destSumFinal + wSize;      //[wSize]
 
-        T *src = (T *)nram_buffer1;//如果sizeof(T) = 2，此时src长度为2 maxNum，如果sizeof(T) = 4，src长度为maxNum
-        T *wet = src + maxNum + offset;//[maxNum]
-        
+        T *src = (T *)nram_buffer1;     // 如果sizeof(T) = 2，此时src长度为2 maxNum，如果sizeof(T) = 4，src长度为maxNum
+        T *wet = src + maxNum + offset; //[maxNum]
 
         int remain = dimsize % maxNum;
         int repeat = (dimsize - remain) / maxNum;
 
-        for(int i = indStart; i < indStart + step; i++){
+        for (int i = indStart; i < indStart + step; i++) {
             int inds = 0;
             int indd = 0;
             int indi = i;
-            for(int j = ndim - 2; j >= 0; j--){
-                inds += (indi % shape[j]) * stride_x[j];
-                indd += (indi % shape[j]) * stride_y[j];
+            for (int j = ndim - 2; j >= 0; j--) {
+                inds += (indi % shape[j]) * x_strides[j];
+                indd += (indi % shape[j]) * y_strides[j];
                 indi = indi / shape[j];
             }
             __bang_write_zero(destSumFinal, wSize);
             __bang_write_zero(destSum, wSize);
-            for(int s = 0; s < repeat; s++){
+            for (int s = 0; s < repeat; s++) {
                 __memcpy(src + offset, source + inds + s * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
-                __bang_mul(src + offset, src + offset, src + offset, maxNum);//src = src * src
+                __bang_mul(src + offset, src + offset, src + offset, maxNum); // src = src * src
 
                 ComputeSum(src, destSum, maxNum);
                 __bang_add(destSumFinal, destSumFinal, destSum, wSize);
             }
-            if(remain){
+            if (remain) {
                 __bang_write_zero(src, maxNum + offset);
                 __bang_write_zero(destSum, wSize);
                 __memcpy(src + offset, source + inds + repeat * maxNum, remain * sizeof(T), GDRAM2NRAM);
-                __bang_mul(src + offset, src + offset, src + offset, maxNum);//src = src * src
+                __bang_mul(src + offset, src + offset, src + offset, maxNum); // src = src * src
                 ComputeSum(src, destSum, maxNum);
                 __bang_add(destSumFinal, destSumFinal, destSum, wSize);
             }
@@ -181,61 +178,59 @@ __mlu_global__ void RMSNorm(T *destination, T const *source, T const *weight, si
             destSumFinal[0] += eps;
             destSumFinal[0] = pow(destSumFinal[0], 0.5);
             float globalSumInv = 1.0 / destSumFinal[0];
-            for(int s = 0; s < repeat; s++){
+            for (int s = 0; s < repeat; s++) {
                 __memcpy(src, source + inds + s * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
                 __memcpy(wet, weight + s * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
-                __bang_mul(src, src, wet, maxNum);//src = src * wet
+                __bang_mul(src, src, wet, maxNum); // src = src * wet
                 __bang_mul_scalar(src, src, globalSumInv, maxNum);
                 __memcpy(destination + indd + s * maxNum, src, maxNum * sizeof(T), NRAM2GDRAM);
             }
-            if(remain){
+            if (remain) {
                 __memcpy(src, source + inds + repeat * maxNum, remain * sizeof(T), GDRAM2NRAM);
                 __memcpy(wet, weight + repeat * maxNum, remain * sizeof(T), GDRAM2NRAM);
-                __bang_mul(src, src, wet, maxNum);//src = src * wet
+                __bang_mul(src, src, wet, maxNum); // src = src * wet
                 __bang_mul_scalar(src, src, globalSumInv, maxNum);
                 __memcpy(destination + indd + repeat * maxNum, src, remain * sizeof(T), NRAM2GDRAM);
             }
         }
-    }
-    else{
+    } else {
         int offset = (sizeof(T) == 2 ? dimS : 0);
         char *nram_buffer1 = nram_buffer + wSize * sizeof(float);
-        float *destSumFinal = (float *)nram_buffer;//[wSize]
+        float *destSumFinal = (float *)nram_buffer; //[wSize]
 
-        T *src = (T *)nram_buffer1;//[dimS]
-        T *wet = src + dimS;//[dimS]
-        T *destSum = wet + dimS;//如果sizeof(T) = 2，此时destSum长度为2 dimS，如果sizeof(T) = 4，destSum长度为dimS
+        T *src = (T *)nram_buffer1; //[dimS]
+        T *wet = src + dimS;        //[dimS]
+        T *destSum = wet + dimS;    // 如果sizeof(T) = 2，此时destSum长度为2 dimS，如果sizeof(T) = 4，destSum长度为dimS
 
-        for(int i = indStart; i < indStart + step; i++){
+        for (int i = indStart; i < indStart + step; i++) {
             __bang_write_zero(destSum, dimS + offset);
             __bang_write_zero(src, dimS);
             __bang_write_zero(destSumFinal, wSize);
             int inds = 0;
             int indd = 0;
             int indi = i;
-            for(int j = ndim - 2; j >= 0; j--){
-                inds += (indi % shape[j]) * stride_x[j];
-                indd += (indi % shape[j]) * stride_y[j];
+            for (int j = ndim - 2; j >= 0; j--) {
+                inds += (indi % shape[j]) * x_strides[j];
+                indd += (indi % shape[j]) * y_strides[j];
                 indi = indi / shape[j];
             }
             __memcpy(src, source + inds, dimsize * sizeof(T), GDRAM2NRAM);
-            __bang_mul(destSum + offset, src, src, dimsize);//src = src * src
+            __bang_mul(destSum + offset, src, src, dimsize); // src = src * src
             ComputeSum(destSum, destSumFinal, dimS);
             destSumFinal[0] /= dimsize;
             destSumFinal[0] += eps;
             destSumFinal[0] = pow(destSumFinal[0], 0.5);
             float globalSumInv = 1.0 / destSumFinal[0];
             __memcpy(wet, weight, dimsize * sizeof(T), GDRAM2NRAM);
-            __bang_mul(src, src, wet, dimsize);//src = src * wet
+            __bang_mul(src, src, wet, dimsize); // src = src * wet
             __bang_mul_scalar(src, src, globalSumInv, dimsize);
             __memcpy(destination + indd, src, dimsize * sizeof(T), NRAM2GDRAM);
         }
     }
 }
 
-
-template<typename T, typename Tw>
-void RMSNormUnion(void *workspace, cnrtQueue_t queue, void *y, void const *x, void const *w, size_t *shape, ptrdiff_t *stride_y, ptrdiff_t *stride_x, float eps, int ndim){
+template <typename T, typename Tw>
+void RMSNormUnion(void *workspace, cnrtQueue_t queue, void *y, void const *x, void const *w, size_t *shape, ptrdiff_t *y_strides, ptrdiff_t *x_strides, float eps, int ndim) {
     cnrtDim3_t k_dim;
     cnrtFunctionType_t k_type;
 
@@ -252,49 +247,45 @@ void RMSNormUnion(void *workspace, cnrtQueue_t queue, void *y, void const *x, vo
         dimS = pow(2, floor(mi) + 1);
     }
     int wSize = 128 / sizeof(T);
-    if (dimS < wSize){
+    if (dimS < wSize) {
         dimS = wSize;
     }
-    
+
     auto y_ = reinterpret_cast<T *>(y);
     auto x_ = reinterpret_cast<T const *>(x);
     auto w_ = reinterpret_cast<Tw const *>(w);
     char *tmpDevice = reinterpret_cast<char *>(workspace);
     char *tmpStride = tmpDevice + ndim * sizeof(size_t);
     size_t *mlu_shape = (size_t *)tmpDevice;
-    ptrdiff_t *mlu_stride_x = (ptrdiff_t *)tmpStride;
-    ptrdiff_t *mlu_stride_y = mlu_stride_x + ndim;
+    ptrdiff_t *mlu_x_strides = (ptrdiff_t *)tmpStride;
+    ptrdiff_t *mlu_y_strides = mlu_x_strides + ndim;
     CNRT_CHECK(cnrtMemcpy(mlu_shape, shape, ndim * sizeof(size_t), cnrtMemcpyHostToDev));
-    CNRT_CHECK(cnrtMemcpy(mlu_stride_x, stride_x, ndim * sizeof(ptrdiff_t), cnrtMemcpyHostToDev));
-    CNRT_CHECK(cnrtMemcpy(mlu_stride_y, stride_y, ndim * sizeof(ptrdiff_t), cnrtMemcpyHostToDev));
+    CNRT_CHECK(cnrtMemcpy(mlu_x_strides, x_strides, ndim * sizeof(ptrdiff_t), cnrtMemcpyHostToDev));
+    CNRT_CHECK(cnrtMemcpy(mlu_y_strides, y_strides, ndim * sizeof(ptrdiff_t), cnrtMemcpyHostToDev));
 
-    if constexpr (std::is_same<T, half>::value && std::is_same<Tw, float>::value){//不能使用sizeof判断
-        RMSNormF16<<<k_dim, k_type, queue>>>(y_, x_, w_, mlu_shape, mlu_stride_y, mlu_stride_x, eps, ndim, dimS);
+    if constexpr (std::is_same<T, half>::value && std::is_same<Tw, float>::value) { // 必须使用constexpr关键字
+        RMSNormF16<<<k_dim, k_type, queue>>>(y_, x_, w_, mlu_shape, mlu_y_strides, mlu_x_strides, eps, ndim, dimS);
+    } else {
+        RMSNorm<T><<<k_dim, k_type, queue>>>(y_, x_, w_, mlu_shape, mlu_y_strides, mlu_x_strides, eps, ndim, dimS);
     }
-    else{
-        RMSNorm<T><<<k_dim, k_type, queue>>>(y_, x_, w_, mlu_shape, mlu_stride_y, mlu_stride_x, eps, ndim, dimS);
-    }
-    
+
     cnrtQueueSync(queue);
-    
 }
 
 infiniStatus_t op::rms_norm::bang::Descriptor::calculate(void *workspace, size_t workspace_size,
-                                     void *y, const void *x, const void *w,
-                                     void *stream) {
-    auto queue = reinterpret_cast<cnrtQueue_t>(stream);                                    
+                                                         void *y, const void *x, const void *w,
+                                                         void *stream) {
+    auto queue = reinterpret_cast<cnrtQueue_t>(stream);
     if (_info.atype == INFINI_DTYPE_F16) {
         if (_info.wtype == INFINI_DTYPE_F16) {
             RMSNormUnion<half, half>(workspace, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
-        }
-        else if (_info.wtype == INFINI_DTYPE_F32) {
+        } else if (_info.wtype == INFINI_DTYPE_F32) {
             RMSNormUnion<half, float>(workspace, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
-        }
-        else {
+        } else {
             return INFINI_STATUS_BAD_TENSOR_DTYPE;
         }
     } else if (_info.atype == INFINI_DTYPE_F32) {
-        if (_info.wtype == INFINI_DTYPE_F32){
+        if (_info.wtype == INFINI_DTYPE_F32) {
             RMSNormUnion<float, float>(workspace, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
         }
     } else {
@@ -303,4 +294,3 @@ infiniStatus_t op::rms_norm::bang::Descriptor::calculate(void *workspace, size_t
 
     return INFINI_STATUS_SUCCESS;
 }
-
