@@ -6,7 +6,7 @@ from typing import List
 from .. import InfiniopTestWriter, InfiniopTestCase, np_dtype_to_ggml, gguf_strides
 
 
-def sample(voc, topk, dtype):
+def random_tensor(voc, topk, dtype):
     assert voc >= topk
     unique_values = np.linspace(1, 2, num=topk + 2, endpoint=False)[1:]
     # 使用random.rand还是可能出现重复值，为此使用linspace来随机选择topk个不重复的元素
@@ -127,112 +127,112 @@ if __name__ == "__main__":
     # data, random_val, topp, topk, temperature
     test_cases = [
         RandomSampleTestCase(
-            sample(512, 3, np.float32),
+            random_tensor(512, 3, np.float32),
             0.8,
             0.8,
             3,
             0.5,
         ),
         RandomSampleTestCase(
-            sample(4096, 5, np.float32),
+            random_tensor(4096, 5, np.float32),
             0.05,
             0.9,
             5,
             1.0,
         ),
         RandomSampleTestCase(
-            sample(16384, 10, np.float32),
+            random_tensor(16384, 10, np.float32),
             0.15,
             0.85,
             10,
             2.0,
         ),
         RandomSampleTestCase(
-            sample(512, 3, np.float32),
+            random_tensor(512, 3, np.float32),
             0.08,
             0,
             3,
             0.5,
         ),
         RandomSampleTestCase(
-            sample(4096, 1, np.float32),
+            random_tensor(4096, 1, np.float32),
             0.5,
             0.9,
             1,
             1.0,
         ),
         RandomSampleTestCase(
-            sample(16384, 1, np.float32),
+            random_tensor(16384, 1, np.float32),
             0.15,
             0,
             1,
             2.0,
         ),
         RandomSampleTestCase(
-            sample(32000, 50, np.float32),
+            random_tensor(32000, 50, np.float32),
             0.08,
             0.8,
             50,
             1.0,
         ),
         RandomSampleTestCase(
-            sample(32000, 25, np.float32),
+            random_tensor(32000, 25, np.float32),
             0.08,
             1.0,
             25,
             1.0,
         ),
         RandomSampleTestCase(
-            sample(512, 3, np.float16),
+            random_tensor(512, 3, np.float16),
             0.8,
             0.8,
             3,
             0.5,
         ),
         RandomSampleTestCase(
-            sample(4096, 5, np.float16),
+            random_tensor(4096, 5, np.float16),
             0.05,
             0.9,
             5,
             1.0,
         ),
         RandomSampleTestCase(
-            sample(16384, 10, np.float16),
+            random_tensor(16384, 10, np.float16),
             0.15,
             0.85,
             10,
             2.0,
         ),
         RandomSampleTestCase(
-            sample(512, 3, np.float16),
+            random_tensor(512, 3, np.float16),
             0.08,
             0,
             3,
             0.5,
         ),
         RandomSampleTestCase(
-            sample(4096, 1, np.float16),
+            random_tensor(4096, 1, np.float16),
             0.5,
             0.9,
             1,
             1.0,
         ),
         RandomSampleTestCase(
-            sample(16384, 1, np.float16),
+            random_tensor(16384, 1, np.float16),
             0.15,
             0,
             1,
             2.0,
         ),
         RandomSampleTestCase(
-            sample(32000, 50, np.float16),
+            random_tensor(32000, 50, np.float16),
             0.08,
             0.8,
             50,
             1.0,
         ),
         RandomSampleTestCase(
-            sample(32000, 25, np.float16),
+            random_tensor(32000, 25, np.float16),
             0.08,
             1.0,
             25,
