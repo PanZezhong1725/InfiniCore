@@ -8,7 +8,9 @@ from .. import InfiniopTestWriter, InfiniopTestCase, np_dtype_to_ggml, gguf_stri
 
 def sample(voc, topk, dtype):
     assert voc >= topk
-    x = np.random.rand(topk) + 1
+    unique_values = np.linspace(1, 2, num=topk + 2, endpoint=False)[1:]
+    # 使用random.rand还是可能出现重复值，为此使用linspace来随机选择topk个不重复的元素
+    x = np.random.choice(unique_values, size=topk, replace=False)
     y = np.random.rand(voc - topk)
 
     # 将x和y合并，并打乱顺序
