@@ -114,28 +114,12 @@ infiniStatus_t Descriptor::calculate(void *workspace,
                                      float alpha,
                                      void *stream) const {
     switch (_dtype) {
-    case INFINI_DTYPE_F16:
-        return musa::calculate<half>(_info,
-                                     _opaque->internal,
-                                     c,
-                                     beta,
-                                     a,
-                                     b,
-                                     alpha,
-                                     stream);
-
-    case INFINI_DTYPE_F32:
-        return musa::calculate<float>(_info,
-                                      _opaque->internal,
-                                      c,
-                                      beta,
-                                      a,
-                                      b,
-                                      alpha,
-                                      stream);
-
-    default:
-        return INFINI_STATUS_BAD_TENSOR_DTYPE;
+        case INFINI_DTYPE_F16:
+            return musa::calculate<half>(_info, _opaque->internal, c, beta, a, b, alpha, stream);
+        case INFINI_DTYPE_F32:
+            return musa::calculate<float>(_info,_opaque->internal, c, beta, a, b, alpha, stream);
+        default:
+            return INFINI_STATUS_BAD_TENSOR_DTYPE;
     }
 }
 
