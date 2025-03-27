@@ -2,7 +2,14 @@
 #include "../../../reduce/bang/reduce.h"
 #include "rms_norm_bang.h"
 
-__nram__ char nram_buffer[NRAM_MAX_SIZE];//必须是全局变量数组，提前申请好NRAM上内存
+constexpr int NRAM_MAX_SIZE =
+#ifdef __BANG_ARCH__
+    (__BANG_ARCH__ == 592) ? NRAM_MAX_SIZE_592 : NRAM_MAX_SIZE_372;
+#else
+    NRAM_MAX_SIZE_372;
+#endif
+
+__nram__ char nram_buffer[NRAM_MAX_SIZE - 10 * 1024]; // 必须是全局变量数组，提前申请好NRAM上内存
 
 const int SRC_MAX_SIZE = 1024 * 32; // 尽量取大一些，但是保证下面的所有NRAM上数组内存总和不要超过NRAM_MAX_SIZE
 
@@ -14,27 +21,27 @@ __mlu_global__ void RMSNorm(T *destination, T const *source, Tw const *weight, s
     }
     int dimsize = shape[ndim - 1];
 
-    const int maxNum = SRC_MAX_SIZE / sizeof(Tw);//一次搬运数据量，由于T = half的时候 Tw可以是float，为此这里尽量以Tw为参考
+    const int maxNum = SRC_MAX_SIZE / sizeof(Tw); // 一次搬运数据量，由于T = half的时候 Tw可以是float，为此这里尽量以Tw为参考
     constexpr int wSize = 128 / sizeof(T);
 
     int remainT = othersize % taskDim;
     int stepEasy = (othersize - remainT) / taskDim;
     int stepHard = stepEasy + 1;
-    int step = (taskId < remainT ? stepHard : stepEasy);//每个taskId分别处理step个向量的reduce
-    int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard);//每个taskId处理数据的开头地址
+    int step = (taskId < remainT ? stepHard : stepEasy);                                                        // 每个taskId分别处理step个向量的reduce
+    int indStart = (taskId < remainT ? taskId * stepHard : (taskId - remainT) * stepEasy + remainT * stepHard); // 每个taskId处理数据的开头地址
 
-    if (dimsize >= maxNum) {//如果dimsize太大，一次性无法搬运
-        int offset = (sizeof(T) == 2 ? maxNum : 0);//这是为了后面使用float精度计算half数据做的处理
+    if (dimsize >= maxNum) {                        // 如果dimsize太大，一次性无法搬运
+        int offset = (sizeof(T) == 2 ? maxNum : 0); // 这是为了后面使用float精度计算half数据做的处理
         char *nram_buffer1 = nram_buffer + 2 * wSize * sizeof(float);
         char *nram_buffer2 = nram_buffer1 + (maxNum + offset) * sizeof(T);
         float *destSumFinal = (float *)nram_buffer; //[wSize]，存储后面的reduce结果
         float *destSum = destSumFinal + wSize;      //[wSize]
 
-        T *src = (T *)nram_buffer1;     // 如果sizeof(T) = 2，此时src长度为2 maxNum，如果sizeof(T) = 4，src长度为maxNum
-        Tw *wet = (Tw *)nram_buffer2;//长度是maxNum
+        T *src = (T *)nram_buffer1;   // 如果sizeof(T) = 2，此时src长度为2 maxNum，如果sizeof(T) = 4，src长度为maxNum
+        Tw *wet = (Tw *)nram_buffer2; // 长度是maxNum
 
         int remain = dimsize % maxNum;
-        int repeat = (dimsize - remain) / maxNum;//一次搬运maxNum，搬运dimsize个元素需要的次数
+        int repeat = (dimsize - remain) / maxNum; // 一次搬运maxNum，搬运dimsize个元素需要的次数
 
         for (int i = indStart; i < indStart + step; i++) {
             int inds = 0;
@@ -45,11 +52,11 @@ __mlu_global__ void RMSNorm(T *destination, T const *source, Tw const *weight, s
                 indd += (indi % shape[j]) * y_strides[j];
                 indi = indi / shape[j];
             }
-            __bang_write_zero(destSumFinal, wSize);//destSumFinal[0]存储的是当前向量的规约值，因此每次循环都要初始化为0
+            __bang_write_zero(destSumFinal, wSize); // destSumFinal[0]存储的是当前向量的规约值，因此每次循环都要初始化为0
             __bang_write_zero(destSum, wSize);
             for (int s = 0; s < repeat; s++) {
-                __memcpy(src + offset, source + inds + s * maxNum, maxNum * sizeof(T), GDRAM2NRAM);//如果T = half，把数据存储到src[maxNum:2MaxNum]
-                __bang_mul(src + offset, src + offset, src + offset, maxNum); // src = src * src
+                __memcpy(src + offset, source + inds + s * maxNum, maxNum * sizeof(T), GDRAM2NRAM); // 如果T = half，把数据存储到src[maxNum:2MaxNum]
+                __bang_mul(src + offset, src + offset, src + offset, maxNum);                       // src = src * src
 
                 op::common_bang::reduce_op::ComputeSum(src, destSum, maxNum);
                 __bang_add(destSumFinal, destSumFinal, destSum, wSize);
@@ -69,7 +76,7 @@ __mlu_global__ void RMSNorm(T *destination, T const *source, Tw const *weight, s
             for (int s = 0; s < repeat; s++) {
                 __memcpy(src, source + inds + s * maxNum, maxNum * sizeof(T), GDRAM2NRAM);
                 __memcpy(wet, weight + s * maxNum, maxNum * sizeof(Tw), GDRAM2NRAM);
-                if constexpr (std::is_same<T, half>::value && std::is_same<Tw, float>::value){
+                if constexpr (std::is_same<T, half>::value && std::is_same<Tw, float>::value) {
                     __bang_float2half_dn((T *)wet, wet, maxNum);
                 }
                 __bang_mul(src, src, (T *)wet, maxNum); // src = src * wet
@@ -79,7 +86,7 @@ __mlu_global__ void RMSNorm(T *destination, T const *source, Tw const *weight, s
             if (remain) {
                 __memcpy(src, source + inds + repeat * maxNum, remain * sizeof(T), GDRAM2NRAM);
                 __memcpy(wet, weight + repeat * maxNum, remain * sizeof(Tw), GDRAM2NRAM);
-                if constexpr (std::is_same<T, half>::value && std::is_same<Tw, float>::value){
+                if constexpr (std::is_same<T, half>::value && std::is_same<Tw, float>::value) {
                     __bang_float2half_dn((T *)wet, wet, maxNum);
                 }
                 __bang_mul(src, src, (T *)wet, maxNum); // src = src * wet
@@ -118,7 +125,7 @@ __mlu_global__ void RMSNorm(T *destination, T const *source, Tw const *weight, s
             destSumFinal[0] = pow(destSumFinal[0], 0.5);
             float globalSumInv = 1.0 / destSumFinal[0];
             __memcpy(wet, weight, dimsize * sizeof(Tw), GDRAM2NRAM);
-            if constexpr (std::is_same<T, half>::value && std::is_same<Tw, float>::value){
+            if constexpr (std::is_same<T, half>::value && std::is_same<Tw, float>::value) {
                 __bang_float2half_dn((T *)wet, wet, dimsize);
             }
             __bang_mul(src, src, (T *)wet, dimsize); // src = src * wet
@@ -133,21 +140,21 @@ void RMSNormUnion(void *workspace, cnrtQueue_t queue, void *y, void const *x, vo
     cnrtDim3_t k_dim;
     cnrtFunctionType_t k_type;
 
-    k_dim.x = 4;//必须是4的倍数
+    k_dim.x = 4; // 必须是4的倍数
     k_dim.y = 1;
     k_dim.z = 1;
-    k_type = CNRT_FUNC_TYPE_UNION1;//可以选择其他，但是必须对k_type做好适配
-    int dimsize = shape[ndim - 1];//操作维度的长度
-    int dimS;//dimS是比dimsize大的最近的2的幂次
+    k_type = CNRT_FUNC_TYPE_UNION1; // 可以选择其他，但是必须对k_type做好适配
+    int dimsize = shape[ndim - 1];  // 操作维度的长度
+    int dimS;                       // dimS是比dimsize大的最近的2的幂次
     float mi = log2(dimsize);
     if (floor(mi) == mi) {
         dimS = dimsize;
     } else {
         dimS = pow(2, floor(mi) + 1);
     }
-    constexpr int wSize = 128 / sizeof(T);//寒武纪__bang_reduce_sum只能针对128字节进行规约，wSize表示一次规约元素数目
+    constexpr int wSize = 128 / sizeof(T); // 寒武纪__bang_reduce_sum只能针对128字节进行规约，wSize表示一次规约元素数目
     if (dimS < wSize) {
-        dimS = wSize;//这里强制要求dimS >= wSize
+        dimS = wSize; // 这里强制要求dimS >= wSize
     }
 
     auto y_ = reinterpret_cast<T *>(y);
@@ -162,7 +169,7 @@ void RMSNormUnion(void *workspace, cnrtQueue_t queue, void *y, void const *x, vo
     CNRT_CHECK(cnrtMemcpyAsync(mlu_x_strides, x_strides, ndim * sizeof(ptrdiff_t), queue, cnrtMemcpyHostToDev));
     CNRT_CHECK(cnrtMemcpyAsync(mlu_y_strides, y_strides, ndim * sizeof(ptrdiff_t), queue, cnrtMemcpyHostToDev));
 
-    RMSNorm<T, Tw><<<k_dim, k_type, queue>>>(y_, x_, w_, mlu_shape, mlu_y_strides, mlu_x_strides, eps, ndim, dimS);//launch kernel
+    RMSNorm<T, Tw><<<k_dim, k_type, queue>>>(y_, x_, w_, mlu_shape, mlu_y_strides, mlu_x_strides, eps, ndim, dimS); // launch kernel
 
     cnrtQueueSync(queue);
 }
@@ -171,20 +178,40 @@ infiniStatus_t op::rms_norm::bang::Descriptor::calculate(void *workspace, size_t
                                                          void *y, const void *x, const void *w,
                                                          void *stream) {
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);
-    if (_info.atype == INFINI_DTYPE_F16) {
-        if (_info.wtype == INFINI_DTYPE_F16) {
-            RMSNormUnion<half, half>(workspace, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
-        } else if (_info.wtype == INFINI_DTYPE_F32) {
-            RMSNormUnion<half, float>(workspace, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
+    if (NRAM_MAX_SIZE == NRAM_MAX_SIZE_372) {
+        if (_info.atype == INFINI_DTYPE_F16) {
+            if (_info.wtype == INFINI_DTYPE_F16) {
+                RMSNormUnion<half, half>(workspace, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
+            } else if (_info.wtype == INFINI_DTYPE_F32) {
+                RMSNormUnion<half, float>(workspace, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
+            } else {
+                return INFINI_STATUS_BAD_TENSOR_DTYPE;
+            }
+        } else if (_info.atype == INFINI_DTYPE_F32) {
+            if (_info.wtype == INFINI_DTYPE_F32) {
+                RMSNormUnion<float, float>(workspace, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
+            }
         } else {
             return INFINI_STATUS_BAD_TENSOR_DTYPE;
         }
-    } else if (_info.atype == INFINI_DTYPE_F32) {
-        if (_info.wtype == INFINI_DTYPE_F32) {
-            RMSNormUnion<float, float>(workspace, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
+    } else if (NRAM_MAX_SIZE == NRAM_MAX_SIZE_592) {
+        if (_info.atype == INFINI_DTYPE_F16) {
+            if (_info.wtype == INFINI_DTYPE_F16) {
+                RMSNormUnion<half, half>(workspace, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
+            } else if (_info.wtype == INFINI_DTYPE_F32) {
+                RMSNormUnion<half, float>(workspace, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
+            } else {
+                return INFINI_STATUS_BAD_TENSOR_DTYPE;
+            }
+        } else if (_info.atype == INFINI_DTYPE_F32) {
+            if (_info.wtype == INFINI_DTYPE_F32) {
+                RMSNormUnion<float, float>(workspace, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
+            }
+        } else {
+            return INFINI_STATUS_BAD_TENSOR_DTYPE;
         }
     } else {
-        return INFINI_STATUS_BAD_TENSOR_DTYPE;
+        return INFINI_STATUS_DEVICE_ARCHITECTURE_NOT_SUPPORTED;
     }
 
     return INFINI_STATUS_SUCCESS;
