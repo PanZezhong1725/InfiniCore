@@ -16,9 +16,9 @@ auto Handle::internal() const -> const std::shared_ptr<Internal> & {
 
 Handle::Internal::Internal(int device_id) {
     cnrtGetDevice(&device_id);
-    cnrtDeviceGetAttribute(&_NRAM_MAX_SIZE, cnrtAttrNramSizePerMcore, device_id);//这个单位是byte
+    cnrtDeviceGetAttribute(&_NRAM_MAX_SIZE, cnrtAttrNramSizePerMcore, device_id); // 这个单位是byte
     int gdramSize = 0;
-    cnrtDeviceGetAttribute(&gdramSize, cnrtAttrAvailableGlobalMemorySize, device_id);//这个单位是MB
+    cnrtDeviceGetAttribute(&gdramSize, cnrtAttrAvailableGlobalMemorySize, device_id); // 这个单位是MB
     _GDRAM_MAX_SIZE = 1024 * 1024 * gdramSize;
 }
 
