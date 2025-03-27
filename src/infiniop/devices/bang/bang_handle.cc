@@ -8,18 +8,10 @@ namespace device::bang {
 
 Handle::Handle(infiniDevice_t device, int device_id)
     : InfiniopHandle{device, device_id},
-      _internal(std::make_shared<Handle::Internal>(device_id)) {}
+      _internal(std::make_shared<Handle::Internal>()) {}
 
 auto Handle::internal() const -> const std::shared_ptr<Internal> & {
     return _internal;
-}
-
-Handle::Internal::Internal(int device_id) {
-    cnrtGetDevice(&device_id);
-    cnrtDeviceGetAttribute(&_NRAM_MAX_SIZE, cnrtAttrNramSizePerMcore, device_id); // 这个单位是byte
-    int gdramSize = 0;
-    cnrtDeviceGetAttribute(&gdramSize, cnrtAttrAvailableGlobalMemorySize, device_id); // 这个单位是MB
-    _GDRAM_MAX_SIZE = 1024 * 1024 * gdramSize;
 }
 
 infiniStatus_t Handle::Internal::useCnnl(cnrtQueue_t queue, const Fn<cnnlHandle_t> &f) const {
@@ -32,9 +24,6 @@ infiniStatus_t Handle::Internal::useCnnl(cnrtQueue_t queue, const Fn<cnnlHandle_
     cnnl_handles.push(std::move(*handle));
     return INFINI_STATUS_SUCCESS;
 }
-
-int Handle::Internal::getNramSize() const { return _NRAM_MAX_SIZE; }
-int Handle::Internal::getGdramSize() const { return _GDRAM_MAX_SIZE; }
 
 cnnlDataType_t getCnnlDtype(infiniDtype_t dt) {
     switch (dt) {

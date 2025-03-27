@@ -2,18 +2,14 @@
 #include "../../../reduce/bang/reduce.h"
 #include "rms_norm_bang.h"
 
-const int SRC_MAX_SIZE = 1024 * 32; // 尽量取大一些，但是保证下面的所有NRAM上数组内存总和不要超过NRAM_MAX_SIZE
+const int SRC_MAX_SIZE = 1024 * 32; // 有些架构的NRAM_MAX_SIZE不是2的幂次，因此这个最好人为指定2的幂次
 
 template <typename T, typename Tw>
 __mlu_global__ void RMSNorm(T *destination, T const *source, Tw const *weight, size_t *shape, ptrdiff_t *y_strides, ptrdiff_t *x_strides, float eps, int ndim, int dimS) {
-    constexpr int NRAM_MAX_SIZE =
-#ifdef __BANG_ARCH__
-        (__BANG_ARCH__ == 592) ? NRAM_MAX_SIZE_592 : NRAM_MAX_SIZE_372;
-#else
-        10 * 1024;
+#ifdef __MLU_NRAM_SIZE__
+    __nram__ char nram_buffer[(__MLU_NRAM_SIZE__ - 10) * 1024]; // 必须是全局变量数组，提前申请好NRAM上内存
 #endif
 
-    __nram__ char nram_buffer[NRAM_MAX_SIZE - 10 * 1024]; // 必须是全局变量数组，提前申请好NRAM上内存
     int othersize = 1;
     for (int i = 0; i < ndim - 1; i++) {
         othersize *= shape[i];
