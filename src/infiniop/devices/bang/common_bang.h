@@ -13,7 +13,7 @@
 #define CHECK_BANG(API) CHECK_INTERNAL(API, CNNL_STATUS_SUCCESS)
 
 #define NRAM_MAX_SIZE_372 786432 // 1024 * 768
-#define NRAM_MAX_SIZE_592 524288 // 1024 * 512,实际测试申请内存的时候char nram_buffer[x], x最多只能是1024 * 500
+#define NRAM_MAX_SIZE_592 524288 // 1024 * 512,实际测试申请内存的时候char nram_buffer[x], x必须小于1024 * 512
 
 #define GDRAM_MAX_SIZE_372 23934976 * 1024 // 1024 * 23374 * 1024
 #define GDRAM_MAX_SIZE_592 40715264 * 1024 // 1024 * 39761 * 1024
