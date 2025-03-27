@@ -1,91 +1,36 @@
 #include "rope_cpu.h"
 #include "../../../devices/cpu/common_cpu.h"
-#include <cmath>
-#include <cstdlib>
 
-infiniopStatus_t cpuCreateRoPEDescriptor(
-    infiniopCpuHandle_t handle,
-    infiniopRoPECpuDescriptor_t *desc_ptr,
+namespace op::rope::cpu {
+
+Descriptor::~Descriptor() = default;
+
+infiniStatus_t Descriptor::create(
+    infiniopHandle_t handle_,
+    Descriptor **desc_ptr,
     infiniopTensorDescriptor_t t_desc,
     infiniopTensorDescriptor_t pos_desc,
     infiniopTensorDescriptor_t sin_desc,
     infiniopTensorDescriptor_t cos_desc) {
-    auto const ty_t = t_desc->dtype,
-               ty_pos = pos_desc->dtype;
 
-    // Check dtypes
+    auto handle = reinterpret_cast<device::cpu::Handle *>(handle_);
+    auto t_dtype = t_desc->dtype();
 
-    constexpr infiniDtype_t SUPPORTED_TY_T[] = {
-        INFINI_DTYPE_F16,
-        INFINI_DTYPE_F32,
-        INFINI_DTYPE_F64,
-    };
-    constexpr infiniDtype_t SUPPORTED_TY_POS[] = {
-        INFINI_DTYPE_U8,
-        INFINI_DTYPE_U16,
-        INFINI_DTYPE_U32,
-        INFINI_DTYPE_U64,
-    };
-    auto supported_t = false,
-         supported_pos = false;
-    for (auto supported_dtype : SUPPORTED_TY_T) {
-        if (ty_t == supported_dtype) {
-            supported_t = true;
-            break;
-        }
-    }
-    for (auto supported_dtype : SUPPORTED_TY_POS) {
-        if (ty_pos == supported_dtype) {
-            supported_pos = true;
-            break;
-        }
-    }
-    if (!supported_t || !supported_pos || sin_desc->dtype != ty_t || cos_desc->dtype != ty_t) {
-        return INFINIOP_STATUS_BAD_TENSOR_DTYPE;
-    }
+    CHECK_DTYPE(t_dtype, INFINI_DTYPE_F16, INFINI_DTYPE_F32, INFINI_DTYPE_F64);
+    CHECK_DTYPE(pos_desc->dtype(), INFINI_DTYPE_U8, INFINI_DTYPE_U16, INFINI_DTYPE_U32, INFINI_DTYPE_U64);
 
-    // Check shapes
-
-    if (t_desc->ndim != 3 || pos_desc->ndim != 1 || sin_desc->ndim != 2 || cos_desc->ndim != 2) {
-        return INFINIOP_STATUS_BAD_TENSOR_SHAPE;
-    }
-    auto const nt = t_desc->shape[0],
-               nh = t_desc->shape[1],
-               dh = t_desc->shape[2],
-               np = pos_desc->shape[0],
-               nsin = sin_desc->shape[0],
-               dh_sin = sin_desc->shape[1],
-               ncos = cos_desc->shape[0],
-               dh_cos = cos_desc->shape[1];
-    if (nt != np || dh_sin != dh || dh_cos != dh || dh % 2 != 0) {
-        // rope 的最后一维要视作 [T;2] 处理
-        return INFINIOP_STATUS_BAD_TENSOR_SHAPE;
-    }
-    if (t_desc->strides[2] != 1) {
-        // hidden state 最后一维必须连续才能视作 [T;2] 处理
-        return INFINIOP_STATUS_BAD_TENSOR_STRIDES;
-    }
+    RoPEInfo info = {};
+    CHECK_STATUS(createRoPEInfo(info, t_desc, pos_desc, sin_desc, cos_desc));
 
     // Create descriptor
+    *desc_ptr = new Descriptor(
+        std::move(info),
+        0,
+        nullptr,
+        handle->device,
+        handle->device_id);
 
-    *desc_ptr = new RoPECpuDescriptor{
-        INFINI_DEVICE_CPU,
-        ty_t,
-        ty_pos,
-        nt,
-        nh,
-        dh,
-        nsin,
-        ncos,
-        t_desc->strides[0],
-        t_desc->strides[1],
-        pos_desc->strides[0],
-        sin_desc->strides[0],
-        cos_desc->strides[0],
-        sin_desc->strides[1],
-        cos_desc->strides[1],
-    };
-    return INFINIOP_STATUS_SUCCESS;
+    return INFINI_STATUS_SUCCESS;
 }
 
 size_t read_pos(infiniDtype_t ty, uint8_t const *pos) {
@@ -93,11 +38,11 @@ size_t read_pos(infiniDtype_t ty, uint8_t const *pos) {
     case INFINI_DTYPE_U8:
         return *pos;
     case INFINI_DTYPE_U16:
-        return *reinterpret_cast<uint16_t const *>(pos);
+        return *reinterpret_cast<const uint16_t *>(pos);
     case INFINI_DTYPE_U32:
-        return *reinterpret_cast<uint32_t const *>(pos);
+        return *reinterpret_cast<const uint32_t *>(pos);
     case INFINI_DTYPE_U64:
-        return *reinterpret_cast<uint64_t const *>(pos);
+        return *reinterpret_cast<const uint64_t *>(pos);
     default:
         // unreachable
         std::abort();
@@ -108,58 +53,60 @@ template <class T>
 void rope_ptr(uint8_t *t, uint8_t const *sin, uint8_t const *cos) {
     auto &a = reinterpret_cast<T *>(t)[0],
          &b = reinterpret_cast<T *>(t)[1];
-    auto sin_ = *reinterpret_cast<T const *>(sin),
-         cos_ = *reinterpret_cast<T const *>(cos);
-    auto a_ = a,
-         b_ = b;
+    auto sin_ = *reinterpret_cast<const float *>(sin),
+         cos_ = *reinterpret_cast<const float *>(cos);
+    auto a_ = a, b_ = b;
     a = a_ * cos_ - b_ * sin_;
     b = a_ * sin_ + b_ * cos_;
 }
 
 template <>
-void rope_ptr<uint16_t>(uint8_t *t, uint8_t const *sin, uint8_t const *cos) {
-    auto &a = reinterpret_cast<uint16_t *>(t)[0],
-         &b = reinterpret_cast<uint16_t *>(t)[1];
-    auto sin_ = f16_to_f32(*reinterpret_cast<uint16_t const *>(sin)),
-         cos_ = f16_to_f32(*reinterpret_cast<uint16_t const *>(cos));
-    auto a_ = f16_to_f32(a),
-         b_ = f16_to_f32(b);
-    a = f32_to_f16(a_ * cos_ - b_ * sin_);
-    b = f32_to_f16(a_ * sin_ + b_ * cos_);
+void rope_ptr<fp16_t>(uint8_t *t, uint8_t const *sin, uint8_t const *cos) {
+    auto &a = reinterpret_cast<fp16_t *>(t)[0],
+         &b = reinterpret_cast<fp16_t *>(t)[1];
+    auto sin_ = *reinterpret_cast<const float *>(sin),
+         cos_ = *reinterpret_cast<const float *>(cos);
+    auto a_ = utils::cast<float>(a),
+         b_ = utils::cast<float>(b);
+    a = utils::cast<fp16_t>(a_ * cos_ - b_ * sin_);
+    b = utils::cast<fp16_t>(a_ * sin_ + b_ * cos_);
 }
 
-infiniopStatus_t cpuRoPE(
-    infiniopRoPECpuDescriptor_t desc,
+infiniStatus_t Descriptor::calculate(
+    void *workspace,
+    size_t workspace_size,
     void *t,
-    void const *pos,
-    void const *sin,
-    void const *cos) {
+    const void *pos_ids,
+    const float *sin_table,
+    const float *cos_table,
+    void *stream) const {
 
-    auto const t_ = reinterpret_cast<uint8_t *>(t);
-    auto const pos_ = reinterpret_cast<uint8_t const *>(pos);
-    auto const sin_ = reinterpret_cast<uint8_t const *>(sin);
-    auto const cos_ = reinterpret_cast<uint8_t const *>(cos);
-    auto const unit_t = infiniSizeof(desc->ty_t),
-               unit_pos = infiniSizeof(desc->ty_pos);
+    const auto t_ = reinterpret_cast<uint8_t *>(t);
+    const auto pos_ = reinterpret_cast<const uint8_t *>(pos_ids);
+    const auto sin_ = reinterpret_cast<const uint8_t *>(sin_table);
+    const auto cos_ = reinterpret_cast<const uint8_t *>(cos_table);
+    const auto unit_t = infiniSizeOf(_info.ty_t),
+               unit_pos = infiniSizeOf(_info.ty_pos);
+    constexpr size_t unit_sin_cos = sizeof(*sin_table);
 
-    for (size_t i = 0; i < desc->nt; ++i) {
-        auto const t__ = t_ + i * desc->s_nt * unit_t;
-        auto const pos__ = read_pos(desc->ty_pos, pos_ + i * desc->s_np * unit_pos);
-        auto const sin__ = sin_ + pos__ * desc->s_nsin * unit_t;
-        auto const cos__ = cos_ + pos__ * desc->s_ncos * unit_t;
-        if (pos__ >= desc->nsin || pos__ >= desc->ncos) {
+    for (size_t i = 0; i < _info.nt; ++i) {
+        auto const t__ = t_ + i * _info.s_nt * unit_t;
+        auto const pos__ = read_pos(_info.ty_pos, pos_ + i * _info.s_np * unit_pos);
+        auto const sin__ = sin_ + pos__ * _info.s_nsin * unit_sin_cos;
+        auto const cos__ = cos_ + pos__ * _info.s_ncos * unit_sin_cos;
+        if (pos__ >= _info.nsin || pos__ >= _info.ncos) {
             // sin cos 表容量不足
-            return INFINIOP_STATUS_BAD_TENSOR_SHAPE;
+            return INFINI_STATUS_BAD_TENSOR_SHAPE;
         }
 
-        for (size_t j = 0; j < desc->nh; ++j) {
-            for (size_t k = 0; k < desc->dh / 2; ++k) {
-                auto const t___ = t__ + (j * desc->s_np + k * 2) * unit_t;
-                auto const sin___ = sin__ + k * desc->s_dsin * unit_t;
-                auto const cos___ = cos__ + k * desc->s_dcos * unit_t;
-                switch (desc->ty_t) {
+        for (size_t j = 0; j < _info.nh; ++j) {
+            for (size_t k = 0; k < _info.dh / 2; ++k) {
+                const auto t___ = t__ + (j * _info.s_nh + k * 2) * unit_t;
+                const auto sin___ = sin__ + k * _info.s_dsin * unit_sin_cos;
+                const auto cos___ = cos__ + k * _info.s_dcos * unit_sin_cos;
+                switch (_info.ty_t) {
                 case INFINI_DTYPE_F16:
-                    rope_ptr<uint16_t>(t___, sin___, cos___);
+                    rope_ptr<fp16_t>(t___, sin___, cos___);
                     break;
                 case INFINI_DTYPE_F32:
                     rope_ptr<float>(t___, sin___, cos___);
@@ -174,11 +121,6 @@ infiniopStatus_t cpuRoPE(
             }
         }
     }
-    return INFINIOP_STATUS_SUCCESS;
+    return INFINI_STATUS_SUCCESS;
 }
-
-infiniopStatus_t cpuDestroyRoPEDescriptor(
-    infiniopRoPECpuDescriptor_t desc) {
-    delete desc;
-    return INFINIOP_STATUS_SUCCESS;
-}
+} // namespace op::rope::cpu
