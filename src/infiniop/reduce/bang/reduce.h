@@ -1,8 +1,15 @@
+#ifndef __INFINIOP_REDUCE_BANG_H__
+#define __INFINIOP_REDUCE_BANG_H__
+
 #include "bang.h"
 // 注意__mlu_func__修饰的函数默认是内联函数
+namespace op::common_bang {
+
+namespace reduce_op {
+
 template <typename T>
 __mlu_func__ void ComputeInternal(T *tensor_nram, T *temp_nram, int num) {
-    int length = 128 / sizeof(T);
+    constexpr int length = 128 / sizeof(T);//编译时算好
     __bang_sumpool(
         temp_nram,
         tensor_nram,
@@ -31,3 +38,10 @@ __mlu_func__ void ComputeSum(bfloat16_t *tensor_nram, float *temp_nram,
     __bang_bfloat162float((float *)tensor_nram, tensor_nram + num, num); // tensor_nram[2 * num]
     ComputeInternal<float>((float *)tensor_nram, temp_nram, num);
 }
+
+
+} // namespace reduce_op
+
+} // namespace op::common_bang
+
+#endif
