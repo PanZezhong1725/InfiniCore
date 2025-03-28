@@ -17,9 +17,6 @@ namespace device::bang {
 class Handle::Internal {
     Pool<cnnlHandle_t> cnnl_handles;
 
-    int _NRAM_MAX_SIZE;  // 单位byte
-    int _GDRAM_MAX_SIZE; // 单位byte
-
     template <typename T>
     using Fn = std::function<infiniStatus_t(T)>;
 
