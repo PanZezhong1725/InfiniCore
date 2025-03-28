@@ -17,11 +17,19 @@ namespace device::bang {
 class Handle::Internal {
     Pool<cnnlHandle_t> cnnl_handles;
 
+    int _core_number;
+    int _union_number;
+
     template <typename T>
     using Fn = std::function<infiniStatus_t(T)>;
 
 public:
+    Internal(int);
+
     infiniStatus_t useCnnl(cnrtQueue_t queue, const Fn<cnnlHandle_t> &f) const;
+
+    int getCoreNum() const;
+    int getUnionNum() const;
 };
 
 cnnlDataType_t getCnnlDtype(infiniDtype_t dt);
@@ -33,8 +41,6 @@ infiniStatus_t setCnnlTensor(cnnlTensorDescriptor_t desc,
 // set cnnl tensor descriptor with strides
 infiniStatus_t setCnnlTensorEx(cnnlTensorDescriptor_t desc,
                                const InfiniopTensorDescriptor *layout);
-
-uint32_t getDeviceAttr(cnrtDeviceAttr_t attr);
 
 } // namespace device::bang
 

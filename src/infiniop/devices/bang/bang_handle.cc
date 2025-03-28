@@ -8,10 +8,16 @@ namespace device::bang {
 
 Handle::Handle(infiniDevice_t device, int device_id)
     : InfiniopHandle{device, device_id},
-      _internal(std::make_shared<Handle::Internal>()) {}
+      _internal(std::make_shared<Handle::Internal>(device_id)) {}
 
 auto Handle::internal() const -> const std::shared_ptr<Internal> & {
     return _internal;
+}
+
+Handle::Internal::Internal(int device_id) {
+    cnrtGetDevice(&device_id);
+    cnrtDeviceGetAttribute(&_union_number, cnrtAttrClusterCount, device_id);
+    cnrtDeviceGetAttribute(&_core_number, cnrtAttrMcorePerCluster, device_id);
 }
 
 infiniStatus_t Handle::Internal::useCnnl(cnrtQueue_t queue, const Fn<cnnlHandle_t> &f) const {
@@ -24,6 +30,9 @@ infiniStatus_t Handle::Internal::useCnnl(cnrtQueue_t queue, const Fn<cnnlHandle_
     cnnl_handles.push(std::move(*handle));
     return INFINI_STATUS_SUCCESS;
 }
+
+int Handle::Internal::getCoreNum() const { return _core_number; }
+int Handle::Internal::getUnionNum() const { return _union_number; }
 
 cnnlDataType_t getCnnlDtype(infiniDtype_t dt) {
     switch (dt) {
@@ -71,14 +80,6 @@ infiniStatus_t setCnnlTensorEx(cnnlTensorDescriptor_t desc,
         desc, CNNL_LAYOUT_ARRAY, getCnnlDtype(layout->dtype()),
         dim_size.size(), dim_size.data(), dim_stride.data()));
     return INFINI_STATUS_SUCCESS;
-}
-
-uint32_t getDeviceAttr(cnrtDeviceAttr_t attr) {
-    int dev_ordinal = 0;
-    int device_attr = 1;
-    cnrtGetDevice(&dev_ordinal);
-    cnrtDeviceGetAttribute(&device_attr, attr, dev_ordinal);
-    return device_attr;
 }
 
 namespace cambricon {
