@@ -15,9 +15,8 @@ auto Handle::internal() const -> const std::shared_ptr<Internal> & {
 }
 
 Handle::Internal::Internal(int device_id) {
-    cnrtGetDevice(&device_id);
-    cnrtDeviceGetAttribute(&_union_number, cnrtAttrClusterCount, device_id);
-    cnrtDeviceGetAttribute(&_core_number, cnrtAttrMcorePerCluster, device_id);
+    cnrtDeviceGetAttribute(&_clusterCount, cnrtAttrClusterCount, device_id);
+    cnrtDeviceGetAttribute(&_corePerCluster, cnrtAttrMcorePerCluster, device_id);
 }
 
 infiniStatus_t Handle::Internal::useCnnl(cnrtQueue_t queue, const Fn<cnnlHandle_t> &f) const {
@@ -31,8 +30,8 @@ infiniStatus_t Handle::Internal::useCnnl(cnrtQueue_t queue, const Fn<cnnlHandle_
     return INFINI_STATUS_SUCCESS;
 }
 
-int Handle::Internal::getCoreNum() const { return _core_number; }
-int Handle::Internal::getUnionNum() const { return _union_number; }
+int Handle::Internal::getCorePerCluster() const { return _corePerCluster; }
+int Handle::Internal::getClusterCount() const { return _clusterCount; }
 
 cnnlDataType_t getCnnlDtype(infiniDtype_t dt) {
     switch (dt) {

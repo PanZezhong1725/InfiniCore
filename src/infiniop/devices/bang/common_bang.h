@@ -17,8 +17,8 @@ namespace device::bang {
 class Handle::Internal {
     Pool<cnnlHandle_t> cnnl_handles;
 
-    int _core_number;
-    int _union_number;
+    int _corePerCluster;
+    int _clusterCount;
 
     template <typename T>
     using Fn = std::function<infiniStatus_t(T)>;
@@ -28,8 +28,8 @@ public:
 
     infiniStatus_t useCnnl(cnrtQueue_t queue, const Fn<cnnlHandle_t> &f) const;
 
-    int getCoreNum() const;
-    int getUnionNum() const;
+    int getCorePerCluster() const;
+    int getClusterCount() const;
 };
 
 cnnlDataType_t getCnnlDtype(infiniDtype_t dt);

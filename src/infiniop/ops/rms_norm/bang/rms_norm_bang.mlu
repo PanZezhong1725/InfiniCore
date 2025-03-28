@@ -131,13 +131,13 @@ __mlu_global__ void RMSNorm(T *destination, T const *source, Tw const *weight, s
 }
 
 template <typename T, typename Tw>
-void RMSNormUnion(void *workspace, int coreNum, int unionNum, cnrtQueue_t queue, void *y, void const *x, void const *w, size_t *shape, ptrdiff_t *y_strides, ptrdiff_t *x_strides, float eps, int ndim) {
-    cnrtDim3_t k_dim;
+void RMSNormUnion(void *workspace, int corePerCluster, int clusterCount, cnrtQueue_t queue, void *y, void const *x, void const *w, size_t *shape, ptrdiff_t *y_strides, ptrdiff_t *x_strides, float eps, int ndim) {
+    cnrtDim3_t kernel_dim;
     cnrtFunctionType_t k_type;
 
-    k_dim.x = coreNum;
-    k_dim.y = unionNum;
-    k_dim.z = 1;
+    kernel_dim.x = corePerCluster;
+    kernel_dim.y = clusterCount;
+    kernel_dim.z = 1;
     k_type = CNRT_FUNC_TYPE_UNION1; // 可以选择其他，但是必须对k_type做好适配
     int dimsize = shape[ndim - 1];  // 操作维度的长度
     int dimS;                       // dimS是比dimsize大的最近的2的幂次
@@ -164,7 +164,7 @@ void RMSNormUnion(void *workspace, int coreNum, int unionNum, cnrtQueue_t queue,
     CNRT_CHECK(cnrtMemcpyAsync(mlu_x_strides, x_strides, ndim * sizeof(ptrdiff_t), queue, cnrtMemcpyHostToDev));
     CNRT_CHECK(cnrtMemcpyAsync(mlu_y_strides, y_strides, ndim * sizeof(ptrdiff_t), queue, cnrtMemcpyHostToDev));
 
-    RMSNorm<T, Tw><<<k_dim, k_type, queue>>>(y_, x_, w_, mlu_shape, mlu_y_strides, mlu_x_strides, eps, ndim, dimS); // launch kernel
+    RMSNorm<T, Tw><<<kernel_dim, k_type, queue>>>(y_, x_, w_, mlu_shape, mlu_y_strides, mlu_x_strides, eps, ndim, dimS); // launch kernel
 
     cnrtQueueSync(queue);
 }
@@ -197,20 +197,20 @@ infiniStatus_t Descriptor::calculate(void *workspace, size_t workspace_size,
                                      void *y, const void *x, const void *w,
                                      void *stream) {
     auto queue = reinterpret_cast<cnrtQueue_t>(stream);
-    int coreNum = _opaque->internal->getCoreNum();
-    int unionNum = _opaque->internal->getUnionNum();
+    int corePerCluster = _opaque->internal->getCorePerCluster();
+    int clusterCount = _opaque->internal->getClusterCount();
 
     if (_info.atype == INFINI_DTYPE_F16) {
         if (_info.wtype == INFINI_DTYPE_F16) {
-            RMSNormUnion<half, half>(workspace, coreNum, unionNum, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
+            RMSNormUnion<half, half>(workspace, corePerCluster, clusterCount, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
         } else if (_info.wtype == INFINI_DTYPE_F32) {
-            RMSNormUnion<half, float>(workspace, coreNum, unionNum, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
+            RMSNormUnion<half, float>(workspace, corePerCluster, clusterCount, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
         } else {
             return INFINI_STATUS_BAD_TENSOR_DTYPE;
         }
     } else if (_info.atype == INFINI_DTYPE_F32) {
         if (_info.wtype == INFINI_DTYPE_F32) {
-            RMSNormUnion<float, float>(workspace, coreNum, unionNum, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
+            RMSNormUnion<float, float>(workspace, corePerCluster, clusterCount, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
         }
     } else {
         return INFINI_STATUS_BAD_TENSOR_DTYPE;
