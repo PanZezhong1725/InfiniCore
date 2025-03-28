@@ -32,3 +32,15 @@ target("infiniop-test")
     add_files(os.projectdir().."/src/infiniop-test/src/*.cpp")
     add_files(os.projectdir().."/src/infiniop-test/src/ops/*.cpp")
 target_end()
+
+target("infinirt-test")
+    set_kind("binary")
+    add_deps("infinirt")
+    on_install(function (target) end)
+
+    set_languages("cxx17")
+    set_warnings("all", "error")
+
+    add_files(os.projectdir().."/src/infinirt-test/*.cc")
+
+target_end()
