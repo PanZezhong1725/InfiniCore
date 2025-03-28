@@ -78,10 +78,6 @@ inline infiniStatus_t createRoPEInfo(
                np = pos_desc->dim(0),
                nsin = sin_desc->dim(0),
                ncos = cos_desc->dim(0);
-    const auto t_strides = t_desc->strides(),
-               pos_strides = pos_desc->strides(),
-               sin_strides = sin_desc->strides(),
-               cos_strides = cos_desc->strides();
 
     if (sin_desc->dtype() != INFINI_DTYPE_F32 || cos_desc->dtype() != INFINI_DTYPE_F32) {
         return INFINI_STATUS_BAD_TENSOR_DTYPE;
@@ -106,13 +102,13 @@ inline infiniStatus_t createRoPEInfo(
     info.dh = dh;
     info.nsin = nsin;
     info.ncos = ncos;
-    info.s_nt = t_strides[0];
-    info.s_nh = t_strides[1];
-    info.s_np = pos_strides[0];
-    info.s_nsin = sin_strides[0];
-    info.s_ncos = cos_strides[0];
-    info.s_dsin = sin_strides[1];
-    info.s_dcos = cos_strides[1];
+    info.s_nt = t_desc->stride(0);
+    info.s_nh = t_desc->stride(1);
+    info.s_np = pos_desc->stride(0);
+    info.s_nsin = sin_desc->stride(0);
+    info.s_ncos = cos_desc->stride(0);
+    info.s_dsin = sin_desc->stride(1);
+    info.s_dcos = cos_desc->stride(1);
 
     return INFINI_STATUS_SUCCESS;
 }
