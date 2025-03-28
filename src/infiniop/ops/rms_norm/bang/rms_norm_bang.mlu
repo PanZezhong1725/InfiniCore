@@ -135,8 +135,11 @@ void RMSNormUnion(void *workspace, cnrtQueue_t queue, void *y, void const *x, vo
     cnrtDim3_t k_dim;
     cnrtFunctionType_t k_type;
 
-    k_dim.x = 4; // 必须是4的倍数
-    k_dim.y = 1;
+    uint32_t union_number = device::bang::getDeviceAttr(cnrtAttrClusterCount); // 当前显卡拥有cluster数目
+    uint32_t core_dim = device::bang::getDeviceAttr(cnrtAttrMcorePerCluster);  // 当前显卡一个cluster拥有core数目
+
+    k_dim.x = core_dim;
+    k_dim.y = union_number;
     k_dim.z = 1;
     k_type = CNRT_FUNC_TYPE_UNION1; // 可以选择其他，但是必须对k_type做好适配
     int dimsize = shape[ndim - 1];  // 操作维度的长度

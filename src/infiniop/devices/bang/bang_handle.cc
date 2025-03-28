@@ -73,6 +73,14 @@ infiniStatus_t setCnnlTensorEx(cnnlTensorDescriptor_t desc,
     return INFINI_STATUS_SUCCESS;
 }
 
+uint32_t getDeviceAttr(cnrtDeviceAttr_t attr) {
+    int dev_ordinal = 0;
+    int device_attr = 1;
+    cnrtGetDevice(&dev_ordinal);
+    cnrtDeviceGetAttribute(&device_attr, attr, dev_ordinal);
+    return device_attr;
+}
+
 namespace cambricon {
 
 Handle::Handle(int device_id)

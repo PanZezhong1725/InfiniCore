@@ -34,6 +34,8 @@ infiniStatus_t setCnnlTensor(cnnlTensorDescriptor_t desc,
 infiniStatus_t setCnnlTensorEx(cnnlTensorDescriptor_t desc,
                                const InfiniopTensorDescriptor *layout);
 
+uint32_t getDeviceAttr(cnrtDeviceAttr_t attr);
+
 } // namespace device::bang
 
 #endif // __COMMON_BANG_H__
