@@ -1,0 +1,220 @@
+#include "../../../devices/bang/common_bang.h"
+#include "../../../reduce/bang/reduce.h"
+#include "rms_norm_bang.h"
+
+__nram__ char nram_buffer[MAX_NRAM_SIZE * 1024];   // 必须是全局变量数组，提前申请好NRAM上内存
+const int SRC_MAX_SIZE = MAX_NRAM_SIZE * 1024 / 4; // 保证后面的申请内存总和不要超过MAX_NRAM_SIZE
+
+template <typename T, typename Tw>
+__mlu_global__ void rmsnorm(T *destination, T const *source, Tw const *weight, size_t *shape, ptrdiff_t *y_strides, ptrdiff_t *x_strides, float eps, int ndim, int dim_s) {
+
+    int other_size = 1;
+    for (int i = 0; i < ndim - 1; i++) {
+        other_size *= shape[i];
+    }
+    int dimsize = shape[ndim - 1];
+
+    const int max_num = SRC_MAX_SIZE / sizeof(Tw); // 一次搬运数据量，由于T = half的时候 Tw可以是float，为此这里尽量以Tw为参考
+    constexpr int reduce_num = 128 / sizeof(T);
+
+    int remain_task = other_size % taskDim;
+    int step_easy = (other_size - remain_task) / taskDim;
+    int step_hard = step_easy + 1;
+    int step = (taskId < remain_task ? step_hard : step_easy);                                                                  // 每个taskId分别处理step个向量的reduce
+    int ind_start = (taskId < remain_task ? taskId * step_hard : (taskId - remain_task) * step_easy + remain_task * step_hard); // 每个taskId处理数据的开头地址
+
+    if (dimsize >= max_num) {                        // 如果dimsize太大，一次性无法搬运
+        int offset = (sizeof(T) == 2 ? max_num : 0); // 这是为了后面使用float精度计算half数据做的处理
+        char *nram_buffer_1 = nram_buffer + 2 * reduce_num * sizeof(float);
+        char *nram_buffer_2 = nram_buffer_1 + (max_num + offset) * sizeof(T);
+        float *dest_sum_final = (float *)nram_buffer;  //[reduce_num]，存储后面的reduce结果
+        float *dest_sum = dest_sum_final + reduce_num; //[reduce_num]
+
+        T *src = (T *)nram_buffer_1;   // 如果sizeof(T) = 2，此时src长度为2 max_num，如果sizeof(T) = 4，src长度为max_num
+        Tw *wet = (Tw *)nram_buffer_2; // 长度是max_num
+
+        int remain = dimsize % max_num;
+        int repeat = (dimsize - remain) / max_num; // 一次搬运max_num，搬运dimsize个元素需要的次数
+
+        for (int i = ind_start; i < ind_start + step; i++) {
+            int ind_s = 0;
+            int ind_d = 0;
+            int ind_i = i;
+            for (int j = ndim - 2; j >= 0; j--) {
+                ind_s += (ind_i % shape[j]) * x_strides[j];
+                ind_d += (ind_i % shape[j]) * y_strides[j];
+                ind_i = ind_i / shape[j];
+            }
+            __bang_write_zero(dest_sum_final, reduce_num); // dest_sum_final[0]存储的是当前向量的规约值，因此每次循环都要初始化为0
+            __bang_write_zero(dest_sum, reduce_num);
+            for (int s = 0; s < repeat; s++) {
+                __memcpy(src + offset, source + ind_s + s * max_num, max_num * sizeof(T), GDRAM2NRAM); // 如果T = half，把数据存储到src[max_num:2MaxNum]
+                __bang_mul(src + offset, src + offset, src + offset, max_num);                         // src = src * src
+
+                op::common_bang::reduce_op::ComputeSum(src, dest_sum, max_num);
+                __bang_add(dest_sum_final, dest_sum_final, dest_sum, reduce_num);
+            }
+            if (remain) {
+                __bang_write_zero(src, max_num + offset);
+                __bang_write_zero(dest_sum, reduce_num);
+                __memcpy(src + offset, source + ind_s + repeat * max_num, remain * sizeof(T), GDRAM2NRAM);
+                __bang_mul(src + offset, src + offset, src + offset, max_num); // src = src * src
+                op::common_bang::reduce_op::ComputeSum(src, dest_sum, max_num);
+                __bang_add(dest_sum_final, dest_sum_final, dest_sum, reduce_num);
+            }
+            dest_sum_final[0] /= dimsize;
+            dest_sum_final[0] += eps;
+            dest_sum_final[0] = pow(dest_sum_final[0], 0.5);
+            float global_sum_inv = 1.0 / dest_sum_final[0];
+            for (int s = 0; s < repeat; s++) {
+                __memcpy(src, source + ind_s + s * max_num, max_num * sizeof(T), GDRAM2NRAM);
+                __memcpy(wet, weight + s * max_num, max_num * sizeof(Tw), GDRAM2NRAM);
+                if constexpr (std::is_same<T, half>::value && std::is_same<Tw, float>::value) {
+                    __bang_float2half_dn((T *)wet, wet, max_num);
+                }
+                __bang_mul(src, src, (T *)wet, max_num); // src = src * wet
+                __bang_mul_scalar(src, src, global_sum_inv, max_num);
+                __memcpy(destination + ind_d + s * max_num, src, max_num * sizeof(T), NRAM2GDRAM);
+            }
+            if (remain) {
+                __memcpy(src, source + ind_s + repeat * max_num, remain * sizeof(T), GDRAM2NRAM);
+                __memcpy(wet, weight + repeat * max_num, remain * sizeof(Tw), GDRAM2NRAM);
+                if constexpr (std::is_same<T, half>::value && std::is_same<Tw, float>::value) {
+                    __bang_float2half_dn((T *)wet, wet, max_num);
+                }
+                __bang_mul(src, src, (T *)wet, max_num); // src = src * wet
+                __bang_mul_scalar(src, src, global_sum_inv, max_num);
+                __memcpy(destination + ind_d + repeat * max_num, src, remain * sizeof(T), NRAM2GDRAM);
+            }
+        }
+    } else {
+        int offset = (sizeof(T) == 2 ? dim_s : 0);
+        char *nram_buffer_1 = nram_buffer + reduce_num * sizeof(float);
+        char *nram_buffer_2 = nram_buffer_1 + (2 * dim_s + offset) * sizeof(T);
+        float *dest_sum_final = (float *)nram_buffer; //[reduce_num]
+
+        T *src = (T *)nram_buffer_1; //[dim_s]
+        T *dest_sum = src + dim_s;   // 如果sizeof(T) = 2，此时dest_sum长度为2 dim_s，如果sizeof(T) = 4，dest_sum长度为dim_s
+
+        Tw *wet = (Tw *)nram_buffer_2;
+
+        for (int i = ind_start; i < ind_start + step; i++) {
+            __bang_write_zero(dest_sum, dim_s + offset);
+            __bang_write_zero(src, dim_s);
+            __bang_write_zero(dest_sum_final, reduce_num);
+            int ind_s = 0;
+            int ind_d = 0;
+            int ind_i = i;
+            for (int j = ndim - 2; j >= 0; j--) {
+                ind_s += (ind_i % shape[j]) * x_strides[j];
+                ind_d += (ind_i % shape[j]) * y_strides[j];
+                ind_i = ind_i / shape[j];
+            }
+            __memcpy(src, source + ind_s, dimsize * sizeof(T), GDRAM2NRAM);
+            __bang_mul(dest_sum + offset, src, src, dimsize); // src = src * src
+            op::common_bang::reduce_op::ComputeSum(dest_sum, dest_sum_final, dim_s);
+            dest_sum_final[0] /= dimsize;
+            dest_sum_final[0] += eps;
+            dest_sum_final[0] = pow(dest_sum_final[0], 0.5);
+            float global_sum_inv = 1.0 / dest_sum_final[0];
+            __memcpy(wet, weight, dimsize * sizeof(Tw), GDRAM2NRAM);
+            if constexpr (std::is_same<T, half>::value && std::is_same<Tw, float>::value) {
+                __bang_float2half_dn((T *)wet, wet, dimsize);
+            }
+            __bang_mul(src, src, (T *)wet, dimsize); // src = src * wet
+            __bang_mul_scalar(src, src, global_sum_inv, dimsize);
+            __memcpy(destination + ind_d, src, dimsize * sizeof(T), NRAM2GDRAM);
+        }
+    }
+}
+
+template <typename T, typename Tw>
+void rmsnormUnion(void *workspace, int core_per_cluster, int cluster_count, cnrtQueue_t queue, void *y, void const *x, void const *w, size_t *shape, ptrdiff_t *y_strides, ptrdiff_t *x_strides, float eps, int ndim) {
+    cnrtDim3_t kernel_dim;
+    cnrtFunctionType_t k_type;
+
+    kernel_dim.x = core_per_cluster;
+    kernel_dim.y = cluster_count;
+    kernel_dim.z = 1;
+    k_type = CNRT_FUNC_TYPE_UNION1; // 可以选择其他，但是必须对k_type做好适配
+    int dimsize = shape[ndim - 1];  // 操作维度的长度
+    int dim_s;                      // dim_s是比dimsize大的最近的2的幂次
+    float mi = log2(dimsize);
+    if (floor(mi) == mi) {
+        dim_s = dimsize;
+    } else {
+        dim_s = pow(2, floor(mi) + 1);
+    }
+    constexpr int reduce_num = 128 / sizeof(T); // 寒武纪__bang_reduce_sum只能针对128字节进行规约，reduce_num表示一次规约元素数目
+    if (dim_s < reduce_num) {
+        dim_s = reduce_num; // 这里强制要求dim_s >= reduce_num
+    }
+
+    auto y_ = reinterpret_cast<T *>(y);
+    auto x_ = reinterpret_cast<T const *>(x);
+    auto w_ = reinterpret_cast<Tw const *>(w);
+    char *tmpDevice = reinterpret_cast<char *>(workspace);
+    char *tmpStride = tmpDevice + ndim * sizeof(size_t);
+    size_t *mlu_shape = (size_t *)tmpDevice;
+    ptrdiff_t *mlu_x_strides = (ptrdiff_t *)tmpStride;
+    ptrdiff_t *mlu_y_strides = mlu_x_strides + ndim;
+    CNRT_CHECK(cnrtMemcpyAsync(mlu_shape, shape, ndim * sizeof(size_t), queue, cnrtMemcpyHostToDev));
+    CNRT_CHECK(cnrtMemcpyAsync(mlu_x_strides, x_strides, ndim * sizeof(ptrdiff_t), queue, cnrtMemcpyHostToDev));
+    CNRT_CHECK(cnrtMemcpyAsync(mlu_y_strides, y_strides, ndim * sizeof(ptrdiff_t), queue, cnrtMemcpyHostToDev));
+
+    rmsnorm<T, Tw><<<kernel_dim, k_type, queue>>>(y_, x_, w_, mlu_shape, mlu_y_strides, mlu_x_strides, eps, ndim, dim_s); // launch kernel
+
+    cnrtQueueSync(queue);
+}
+
+namespace op::rms_norm::bang {
+struct Descriptor::Opaque {
+    std::shared_ptr<device::bang::Handle::Internal> internal;
+};
+
+Descriptor::~Descriptor() {
+    delete _opaque;
+}
+
+infiniStatus_t Descriptor::create(
+    infiniopHandle_t handle_,
+    Descriptor **desc_ptr,
+    infiniopTensorDescriptor_t y_desc,
+    infiniopTensorDescriptor_t x_desc,
+    infiniopTensorDescriptor_t w_desc,
+    float epsilon) {
+    auto handle = reinterpret_cast<device::bang::cambricon::Handle *>(handle_);
+    RMSNormInfo info;
+    CHECK_STATUS(createRMSNormInfo(&info, y_desc, x_desc, w_desc, epsilon));
+    size_t workspace_size = info.ndim() * (sizeof(size_t) + 2 * sizeof(ptrdiff_t)); // 用来存储一个shape和两个stride数组
+    *desc_ptr = new Descriptor(new Opaque{reinterpret_cast<device::bang::Handle *>(handle)->internal()}, info, workspace_size, handle->device, handle->device_id);
+    return INFINI_STATUS_SUCCESS;
+}
+
+infiniStatus_t Descriptor::calculate(void *workspace, size_t workspace_size,
+                                     void *y, const void *x, const void *w,
+                                     void *stream) {
+    auto queue = reinterpret_cast<cnrtQueue_t>(stream);
+    int core_per_cluster = _opaque->internal->getCorePerCluster();
+    int cluster_count = _opaque->internal->getClusterCount();
+
+    if (_info.atype == INFINI_DTYPE_F16) {
+        if (_info.wtype == INFINI_DTYPE_F16) {
+            rmsnormUnion<half, half>(workspace, core_per_cluster, cluster_count, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
+        } else if (_info.wtype == INFINI_DTYPE_F32) {
+            rmsnormUnion<half, float>(workspace, core_per_cluster, cluster_count, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
+        } else {
+            return INFINI_STATUS_BAD_TENSOR_DTYPE;
+        }
+    } else if (_info.atype == INFINI_DTYPE_F32) {
+        if (_info.wtype == INFINI_DTYPE_F32) {
+            rmsnormUnion<float, float>(workspace, core_per_cluster, cluster_count, queue, y, x, w, _info.shape.data(), _info.y_strides.data(), _info.x_strides.data(), _info.epsilon, _info.ndim());
+        }
+    } else {
+        return INFINI_STATUS_BAD_TENSOR_DTYPE;
+    }
+
+    return INFINI_STATUS_SUCCESS;
+}
+
+} // namespace op::rms_norm::bang
