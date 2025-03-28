@@ -8,10 +8,10 @@
 namespace op::common_cpu::elementwise_op {
 
 // Perform elementwise operation for different input types
-template <typename Op, typename Tc, typename... InputTypes, size_t... Is, typename... Args, std::enable_if_t<(sizeof...(InputTypes) == Op::num_inputs), int> = 0>
+template <typename Op, typename Tout, typename... Tin, size_t... Is, typename... Args, std::enable_if_t<(sizeof...(Tin) == Op::num_inputs), int> = 0>
 void calculate_impl(const op::elementwise::ElementwiseInfo &info, void *output, const std::vector<const void *> &inputs, std::index_sequence<Is...>, Args &&...args) {
-    Tc *out = reinterpret_cast<Tc *>(output);
-    std::tuple<const InputTypes *...> input_ptrs = {reinterpret_cast<const InputTypes *>(inputs[Is])...};
+    Tout *out = reinterpret_cast<Tout *>(output);
+    std::tuple<const Tin *...> input_ptrs = {reinterpret_cast<const Tin *>(inputs[Is])...};
     ptrdiff_t output_size = info.output_size;
 
 #pragma omp parallel for
@@ -25,19 +25,19 @@ void calculate_impl(const op::elementwise::ElementwiseInfo &info, void *output, 
                                                           : op::common_cpu::indexToOffset(i, info.ndim, info.input_shapes[input_id].data(), info.input_strides[input_id].data()));
         };
 
-        out[out_idx] = utils::cast<Tc>(Op{}(std::get<Is>(input_ptrs)[get_input_idx(Is)]..., std::forward<Args>(args)...));
+        out[out_idx] = utils::cast<Tout>(Op{}(std::get<Is>(input_ptrs)[get_input_idx(Is)]..., std::forward<Args>(args)...));
     }
 }
 
 // Invoke elementwise operation for different input types
-template <typename Op, typename Tc, typename... InputTypes, typename... Args, std::enable_if_t<(sizeof...(InputTypes) == Op::num_inputs), int> = 0>
+template <typename Op, typename Tout, typename... Tin, typename... Args, std::enable_if_t<(sizeof...(Tin) == Op::num_inputs), int> = 0>
 void calculate(const op::elementwise::ElementwiseInfo &info,
                void *output,
                const std::vector<const void *> &inputs,
                Args &&...args) {
 
-    static_assert(sizeof...(InputTypes) == Op::num_inputs, "Input type count mismatch");
-    calculate_impl<Op, Tc, InputTypes...>(info, output, inputs, std::make_index_sequence<sizeof...(InputTypes)>{}, std::forward<Args>(args)...);
+    static_assert(sizeof...(Tin) == Op::num_inputs, "Input type count mismatch");
+    calculate_impl<Op, Tout, Tin...>(info, output, inputs, std::make_index_sequence<sizeof...(Tin)>{}, std::forward<Args>(args)...);
 }
 
 // Perform elementwise operation when all inputs have the same type
