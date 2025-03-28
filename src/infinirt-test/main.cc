@@ -2,7 +2,7 @@
 #include <infinirt.h>
 
 struct ParsedArgs {
-    infiniDevice_t device_type = INFINI_DEVICE_CPU; // 默认 CPU
+    infiniDevice_t device_type = INFINI_DEVICE_CPU;
 };
 
 void printUsage() {
@@ -76,13 +76,16 @@ int main(int argc, char *argv[]) {
     }
 
     for (int deviceId = 0; deviceId < numDevices; ++deviceId) {
-        if (!test_setDevice(device, deviceId)) {
+        if (!testSetDevice(device, deviceId)) {
             return 1;
         }
-        // test_memcpy
-        size_t dataSize = 1024;
-        if (!test_memcpy(device, deviceId, dataSize)) {
-            return 1;
+
+        size_t dataSize[] = {1024, 4 * 1024, 2 * 1024 * 1024, 1L * 1024 * 1024 * 1024};
+
+        for (size_t size : dataSize) {
+            if (!testMemcpy(device, deviceId, size)) {
+                return 1;
+            }
         }
     }
 

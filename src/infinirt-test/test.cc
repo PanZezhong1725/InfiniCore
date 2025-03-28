@@ -3,7 +3,7 @@
 #include <infinirt.h>
 #include <iostream>
 
-bool test_memcpy(infiniDevice_t device, int deviceId, size_t dataSize) {
+bool testMemcpy(infiniDevice_t device, int deviceId, size_t dataSize) {
 
     std::cout << "==============================================" << std::endl;
     std::cout << "Testing memcpy on Device ID: " << deviceId << std::endl;
@@ -78,7 +78,7 @@ bool test_memcpy(infiniDevice_t device, int deviceId, size_t dataSize) {
     return true;
 }
 
-bool test_setDevice(infiniDevice_t device, int deviceId) {
+bool testSetDevice(infiniDevice_t device, int deviceId) {
 
     std::cout << "Setting device " << device << " with ID: " << deviceId << std::endl;
 
