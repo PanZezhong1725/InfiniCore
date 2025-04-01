@@ -3,6 +3,7 @@ local KUNLUN_HOME = os.getenv("KUNLUN_HOME")
 
 -- Add include dirs
 add_includedirs(path.join(KUNLUN_HOME, "include"), {public=true})
+add_includedirs(path.join(KUNLUN_HOME, "XTCL/lib/clang/10.0.1/include"), {public = true})
 add_linkdirs(path.join(KUNLUN_HOME, "lib64"))
 add_links("xpurt")
 add_links("xpuapi")
