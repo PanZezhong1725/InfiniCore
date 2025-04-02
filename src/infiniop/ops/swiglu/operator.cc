@@ -5,9 +5,9 @@
 #ifdef ENABLE_CPU_API
 #include "cpu/swiglu_cpu.h"
 #endif
-#ifdef ENABLE_KUNLUN_API
-#include "kunlun/swiglu_kunlun.h"
-#endif
+// #ifdef ENABLE_KUNLUN_API
+// #include "kunlun/swiglu_kunlun.h"
+// #endif
 
 __C infiniStatus_t infiniopCreateSwiGLUDescriptor(
     infiniopHandle_t handle,
@@ -61,9 +61,9 @@ __C infiniStatus_t infiniopCreateSwiGLUDescriptor(
         return musaCreateSwiGLUDescriptor(
             handle, (SwiGLUMusaDescriptor_t *)desc_ptr, c_desc, a_desc, b_desc);
 #endif
-#ifdef ENABLE_KUNLUN_API
-        CREATE(INFINI_DEVICE_KUNLUN, kunlun);
-#endif
+        // #ifdef ENABLE_KUNLUN_API
+        //         CREATE(INFINI_DEVICE_KUNLUN, kunlun);
+        // #endif
 
     default:
         return INFINI_STATUS_DEVICE_TYPE_NOT_SUPPORTED;
@@ -110,9 +110,9 @@ __C infiniStatus_t infiniopSwiGLU(
     case DevMthreadsGpu:
         return musaSwiGLU((SwiGLUMusaDescriptor_t)desc, c, a, b, stream);
 #endif
-#ifdef ENABLE_KUNLUN_API
-        CALCULATE(INFINI_DEVICE_KUNLUN, kunlun);
-#endif
+        // #ifdef ENABLE_KUNLUN_API
+        //         CALCULATE(INFINI_DEVICE_KUNLUN, kunlun);
+        // #endif
 
     default:
         return INFINI_STATUS_DEVICE_TYPE_NOT_SUPPORTED;
@@ -155,9 +155,9 @@ infiniopDestroySwiGLUDescriptor(infiniopSwiGLUDescriptor_t desc) {
     case DevMthreadsGpu:
         return musaDestroySwiGLUDescriptor((SwiGLUMusaDescriptor_t)desc);
 #endif
-#ifdef ENABLE_KUNLUN_API
-        DELETE(INFINI_DEVICE_KUNLUN, kunlun);
-#endif
+        // #ifdef ENABLE_KUNLUN_API
+        //         DELETE(INFINI_DEVICE_KUNLUN, kunlun);
+        // #endif
 
     default:
         return INFINI_STATUS_DEVICE_TYPE_NOT_SUPPORTED;

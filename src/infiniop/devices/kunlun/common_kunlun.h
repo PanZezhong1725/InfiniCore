@@ -33,4 +33,3 @@ std::vector<size_t> getPaddedShape(size_t ndim, const size_t *shape, const size_
 } // namespace op::common_kunlun
 
 #endif // __INFINIOP__COMMON_KUNLUN_H__
-
