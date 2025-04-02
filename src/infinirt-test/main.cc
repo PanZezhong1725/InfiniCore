@@ -71,8 +71,8 @@ int main(int argc, char *argv[]) {
     std::cout << "Device Type: " << device << " | Available Devices: " << numDevices << std::endl;
 
     if (numDevices == 0) {
-        std::cerr << "Device type " << device << " has no available devices." << std::endl;
-        return 1;
+        std::cout << "Device type " << device << " has no available devices." << std::endl;
+        return 0;
     }
 
     for (int deviceId = 0; deviceId < numDevices; ++deviceId) {
