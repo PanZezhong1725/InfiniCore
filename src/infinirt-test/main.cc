@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
             return 1;
         }
 
-        size_t dataSize[] = {1024, 4 * 1024, 2 * 1024 * 1024, 1L * 1024 * 1024 * 1024};
+        size_t dataSize[] = {1 << 10, 4 << 10, 2 << 20, 1L << 30};
 
         for (size_t size : dataSize) {
             if (!testMemcpy(device, deviceId, size)) {
