@@ -25,13 +25,14 @@ infiniStatus_t Descriptor::create(
     auto dst_strides = y_desc->strides();
     auto src_strides = x_desc->strides();
     auto element_size = infiniSizeOf(dtype);
+  
     auto meta = utils::RearrangeMeta::create(shape.data(), dst_strides.data(), src_strides.data(), ndim, element_size);
     if (!meta) {
         return INFINI_STATUS_BAD_TENSOR_STRIDES;
     }
 
     *desc_ptr = new Descriptor(
-        std::move(*meta),
+        result.take(),
         nullptr,
         handle->device,
         handle->device_id);
