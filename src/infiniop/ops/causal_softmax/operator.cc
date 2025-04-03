@@ -5,6 +5,9 @@
 #ifdef ENABLE_CPU_API
 #include "cpu/causal_softmax_cpu.h"
 #endif
+#ifdef ENABLE_CUDA_API
+#include "cuda/causal_softmax_cuda.cuh"
+#endif
 
 __C infiniStatus_t infiniopCreateCausalSoftmaxDescriptor(
     infiniopHandle_t handle,
@@ -22,11 +25,8 @@ __C infiniStatus_t infiniopCreateCausalSoftmaxDescriptor(
 #ifdef ENABLE_CPU_API
         CREATE(INFINI_DEVICE_CPU, cpu)
 #endif
-#ifdef ENABLE_NV_GPU
-    case DevNvGpu: {
-        return cudaCreateCausalSoftmaxDescriptor((CudaHandle_t)handle, (CausalSoftmaxCudaDescriptor_t *)desc_ptr, y_desc);
-    }
-
+#ifdef ENABLE_CUDA_API
+        CREATE(INFINI_DEVICE_NVIDIA, cuda)
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
     case DevCambriconMlu: {
@@ -64,11 +64,8 @@ __C infiniStatus_t infiniopGetCausalSoftmaxWorkspaceSize(infiniopCausalSoftmaxDe
 #ifdef ENABLE_CPU_API
         GET(INFINI_DEVICE_CPU, cpu)
 #endif
-#ifdef ENABLE_NV_GPU
-    case DevNvGpu: {
-        return cudaGetCausalSoftmaxWorkspaceSize((CausalSoftmaxCudaDescriptor_t)desc, size);
-    }
-
+#ifdef ENABLE_CUDA_API
+        GET(INFINI_DEVICE_NVIDIA, cuda)
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
     case DevCambriconMlu: {
@@ -107,11 +104,8 @@ __C infiniStatus_t infiniopCausalSoftmax(infiniopCausalSoftmaxDescriptor_t desc,
 #ifdef ENABLE_CPU_API
         CALCULATE(INFINI_DEVICE_CPU, cpu)
 #endif
-#ifdef ENABLE_NV_GPU
-    case DevNvGpu: {
-        return cudaCausalSoftmax((CausalSoftmaxCudaDescriptor_t)desc, workspace, workspace_size, data, stream);
-    }
-
+#ifdef ENABLE_CUDA_API
+        CALCULATE(INFINI_DEVICE_NVIDIA, cuda)
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
     case DevCambriconMlu: {
@@ -149,11 +143,8 @@ __C infiniStatus_t infiniopDestroyCausalSoftmaxDescriptor(infiniopCausalSoftmaxD
 #ifdef ENABLE_CPU_API
         DESTROY(INFINI_DEVICE_CPU, cpu)
 #endif
-#ifdef ENABLE_NV_GPU
-    case DevNvGpu: {
-        return cudaDestroyCausalSoftmaxDescriptor((CausalSoftmaxCudaDescriptor_t)desc);
-    }
-
+#ifdef ENABLE_CUDA_API
+        DESTROY(INFINI_DEVICE_NVIDIA, cuda)
 #endif
 #ifdef ENABLE_CAMBRICON_MLU
     case DevCambriconMlu: {

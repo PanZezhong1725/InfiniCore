@@ -23,6 +23,7 @@ from libinfiniop import (
 # These are not meant to be imported from other modules
 _TEST_CASES = [
     # x_shape, x_stride
+    ((3, 4), None),
     ((32, 512), None),
     ((32, 512), (1024, 1)),
     ((32, 5, 5), None),
