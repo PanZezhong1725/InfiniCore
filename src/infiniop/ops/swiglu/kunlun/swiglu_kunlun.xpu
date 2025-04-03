@@ -1,0 +1,132 @@
+#include <stddef.h>
+#include <cmath>
+#include <iostream>
+#include <xpu/runtime.h>
+#include "xpu/kernel/xtdk.h"
+#include "xpu/kernel/xtdk_math.h"
+#include "xpu/kernel/xtdk_simd.h"
+
+template <typename T>
+__global__ void swiglu(const T *a, const T *b, T *c, int data_size, int other_size, ptrdiff_t a_strides, ptrdiff_t b_strides, ptrdiff_t c_strides) {
+
+    constexpr int buf_size = 4 * 1024 / sizeof(T); // 保证所有内存加起来不超过16kB
+    __local__ T a_local[buf_size];
+    __local__ T b_local[buf_size];
+    __local__ T c_local[buf_size];
+
+    int remain = data_size % buf_size;
+    int repeat = (data_size - remain) / buf_size;
+
+    int cid = core_id();
+    int ncores = core_num();
+    if (cid >= ncores) {
+        return;
+    }
+    int thread_id = ncores * cluster_id() + cid;
+    int nthreads = ncores * cluster_num();
+
+    int remain_task = other_size % nthreads;
+    int step_easy = (other_size - remain_task) / nthreads;
+    int step_hard = step_easy + 1;
+    int step = (thread_id < remain_task ? step_hard : step_easy); // 每个thread_id分别处理step个向量的reduce
+    int ind_start = (thread_id < remain_task ? thread_id * step_hard : (thread_id - remain_task) * step_easy + remain_task * step_hard);
+
+    for (int i = ind_start; i < ind_start + step; i++) {
+        int a_ind = 0;
+        int b_ind = 0;
+        int c_ind = 0;
+        int i_ind = i;
+        a_ind += i_ind * a_strides;
+        b_ind += i_ind * b_strides;
+        c_ind += i_ind * c_strides;
+
+        for (int r = 0; r < repeat + (remain > 0 ? 1 : 0); r++) {
+            int read_len = (r < repeat ? buf_size : remain);
+            GM2LM(a + a_ind + r * buf_size, a_local, read_len * sizeof(T));
+            GM2LM(b + b_ind + r * buf_size, b_local, read_len * sizeof(T));
+            // GM2LM(c + c_ind + r * buf_size, c_local, read_len * sizeof(T));
+
+            for (int i = 0; i < read_len; i++) {
+                c_local[i] = a_local[i] / (1 + std::exp(-a_local[i])) * b_local[i];
+            }
+            mfence();
+            LM2GM(c_local, c + c_ind + r * buf_size, read_len * sizeof(T));
+        }
+    }
+}
+
+template <typename T>
+void launchKernel(const void *a, const void *b, void *c, int data_size, int other_size, ptrdiff_t a_strides, ptrdiff_t b_strides, ptrdiff_t c_strides) {
+    auto a_ = reinterpret_cast<const T *>(a);
+    auto b_ = reinterpret_cast<const T *>(b);
+    auto c_ = reinterpret_cast<T *>(c);
+    swiglu<T><<<8, 64>>>(a_, b_, c_, data_size, other_size, a_strides, b_strides, c_strides);
+}
+/***
+namespace op::swiglu::kunlun {
+
+Descriptor::~Descriptor() = default;
+
+infiniStatus_t Descriptor::create(
+    infiniopHandle_t handle_,
+    Descriptor **desc_ptr,
+    infiniopTensorDescriptor_t out_desc,
+    infiniopTensorDescriptor_t up_desc,
+    infiniopTensorDescriptor_t gate_desc) {
+
+    auto handle = reinterpret_cast<device::kunlun::Handle *>(handle_);
+    auto dtype = out_desc->dtype();
+    const auto &out_shape = out_desc->shape();
+    const auto &up_shape = up_desc->shape();
+    const auto &gate_shape = gate_desc->shape();
+
+    CHECK_DTYPE(dtype, INFINI_DTYPE_F16, INFINI_DTYPE_F32, INFINI_DTYPE_F64);
+    if (!SAME_VEC(out_shape, up_shape, gate_shape)) {
+        return INFINI_STATUS_BAD_TENSOR_SHAPE;
+    }
+
+    op::binary::BinaryInfo info;
+    CHECK_STATUS(op::binary::createBinaryInfo(info, out_desc, up_desc, gate_desc));
+
+    // Create descriptor
+    *desc_ptr = new Descriptor(
+        dtype,
+        std::move(info),
+        nullptr,
+        handle->device,
+        handle->device_id);
+
+    return INFINI_STATUS_SUCCESS;
+}
+
+infiniStatus_t Descriptor::calculate(
+    void *c,
+    const void *a,
+    const void *b,
+    void *stream) const {
+    int data_size = _info.out_shape[0];
+    int other_size = _info.out_shape[1];
+    ptrdiff_t a_strides = _info.a_strides[0];
+    ptrdiff_t b_strides = _info.b_strides[0];
+    ptrdiff_t c_strides = _info.c_strides[0];
+    switch (_dtype) {
+    case INFINI_DTYPE_F16:
+        launchKernel<half>(a, b, c, data_size, other_size, a_strides, b_strides, c_strides);
+        // op::common_kunlun::binary_op::calculate<fp16_t, SwiGLUOp>(_info, c, a, b);
+        break;
+    case INFINI_DTYPE_F32:
+        launchKernel<float>(a, b, c, data_size, other_size, a_strides, b_strides, c_strides);
+        // op::common_kunlun::binary_op::calculate<float, SwiGLUOp>(_info, c, a, b);
+        break;
+    case INFINI_DTYPE_F64:
+        launchKernel<double>(a, b, c, data_size, other_size, a_strides, b_strides, c_strides);
+        // op::common_kunlun::binary_op::calculate<double, SwiGLUOp>(_info, c, a, b);
+        break;
+    default:
+        return INFINI_STATUS_BAD_TENSOR_DTYPE;
+    }
+
+    return INFINI_STATUS_SUCCESS;
+}
+} // namespace op::swiglu::kunlun
+***/
